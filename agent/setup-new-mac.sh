@@ -195,7 +195,7 @@ fi
 
 # Download scripts from GitHub repo (agent/ subfolder)
 RAW_BASE="https://raw.githubusercontent.com/rodbrathwaite79/cpm-malloy-model/main/agent"
-for SCRIPT in daily-report.mjs quality-agent.mjs com.rod.cpm-report.plist.template package.json MIGRATE.md; do
+for SCRIPT in daily-report.mjs quality-agent.mjs package.json MIGRATE.md; do
   if [ -f "$SCRIPT_DIR/$SCRIPT" ]; then
     ok "$SCRIPT already present"
   else
