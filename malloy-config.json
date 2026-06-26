@@ -1,7 +1,8 @@
 {
+  "includeDefaultConnections": true,
   "connections": {
-    "cpm_db": {
-      "is": "duckdb",
+    "duckdb": {
+      "is": "duckdb"
     }
   }
 }
