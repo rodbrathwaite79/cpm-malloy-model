@@ -1,0 +1,8 @@
+{
+  "connections": {
+    "cpm_db": {
+      "is": "duckdb",
+      "databasePath": "../data/data/cpm_benchmarks.duckdb"
+    }
+  }
+}
