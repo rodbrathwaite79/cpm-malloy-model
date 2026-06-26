@@ -27,7 +27,7 @@
 import https from "https"
 import http from "http"
 import { URL } from "url"
-import { readFileSync, existsSync, createReadStream } from "fs"
+import { readFileSync, writeFileSync, existsSync, createReadStream } from "fs"
 import { createInterface } from "readline"
 import path from "path"
 import { fileURLToPath } from "url"
@@ -465,111 +465,368 @@ async function updateGitHubCsv(newRows) {
   }
 }
 
-// ── HTML report ───────────────────────────────────────────────────────────────
-function buildHtmlReport(rows, webFindings, aiInsights, verifiedNewData, runDate) {
-  // Group rows by channel for trend display
-  const byChannel = {}
-  for (const r of rows) {
-    if (!byChannel[r.channel]) byChannel[r.channel] = []
-    byChannel[r.channel].push(r)
+// ── MoM / YoY change computation ─────────────────────────────────────────────
+function computeChanges(rows) {
+  const byKey = {}
+  for (const r of rows) byKey[`${r.channel}|${r.year}|${r.month}`] = r.avg_cpm
+
+  return rows.map(r => {
+    const prevMo  = r.month === 1 ? 12 : r.month - 1
+    const prevYr  = r.month === 1 ? r.year - 1 : r.year
+    const prevCpm = byKey[`${r.channel}|${prevYr}|${prevMo}`]
+    const mom     = prevCpm != null ? (r.avg_cpm - prevCpm) / prevCpm * 100 : null
+
+    const yoyCpm  = byKey[`${r.channel}|${r.year - 1}|${r.month}`]
+    const yoy     = yoyCpm != null ? (r.avg_cpm - yoyCpm) / yoyCpm * 100 : null
+
+    return { ...r, mom, yoy }
+  })
+}
+
+function fmtPct(v) {
+  if (v === null) return '<span style="color:#475569">—</span>'
+  const sign  = v >= 0 ? "+" : ""
+  const arrow = v > 0.5 ? "↑" : v < -0.5 ? "↓" : "→"
+  const color = v > 0.5 ? "#22c55e" : v < -0.5 ? "#ef4444" : "#f59e0b"
+  return `<span style="color:${color};font-weight:600;">${arrow} ${sign}${v.toFixed(1)}%</span>`
+}
+
+// ── Email report (static HTML — no JavaScript, all email clients) ─────────────
+function buildHtmlReport(rows, webFindings, aiInsights, verifiedNewData, runDate, dashboardPath) {
+  const enriched = computeChanges(rows)
+
+  // Latest per channel (for summary cards)
+  const latestByChannel = {}
+  for (const r of enriched) {
+    const cur = latestByChannel[r.channel]
+    if (!cur || r.period_sort > cur.period_sort) latestByChannel[r.channel] = r
   }
 
   // Channel summary cards
   const channelCards = CHANNELS.map(({ key, label }) => {
-    const chRows = (byChannel[key] ?? []).sort((a, b) => b.year - a.year || b.month - a.month)
-    if (chRows.length === 0) return ""
-    const latest = chRows[0]
-    const prev   = chRows[1]
-    const change = prev ? ((latest.avg_cpm - prev.avg_cpm) / prev.avg_cpm * 100) : null
-    const arrow  = change === null ? "" : change > 0.5 ? "↑" : change < -0.5 ? "↓" : "→"
-    const color  = change === null ? "#666" : change > 0.5 ? "#22c55e" : change < -0.5 ? "#ef4444" : "#f59e0b"
+    const r = latestByChannel[key]
+    if (!r) return ""
     return `
-    <div style="background:#1e293b;border-radius:8px;padding:16px;margin-bottom:12px;">
-      <div style="color:#94a3b8;font-size:12px;text-transform:uppercase;letter-spacing:1px;">${label}</div>
+    <div style="background:#1e293b;border-radius:8px;padding:16px;margin-bottom:10px;">
+      <div style="color:#94a3b8;font-size:11px;text-transform:uppercase;letter-spacing:1px;">${label}</div>
       <div style="display:flex;align-items:baseline;gap:8px;margin-top:4px;">
-        <span style="color:#f1f5f9;font-size:28px;font-weight:700;">$${latest.avg_cpm.toFixed(2)}</span>
-        <span style="color:#94a3b8;font-size:13px;">CPM</span>
-        ${change !== null ? `<span style="color:${color};font-size:14px;font-weight:600;">${arrow} ${Math.abs(change).toFixed(1)}% MoM</span>` : ""}
+        <span style="color:#f1f5f9;font-size:26px;font-weight:700;">$${r.avg_cpm.toFixed(2)}</span>
+        <span style="color:#94a3b8;font-size:12px;">CPM</span>
+        <span style="font-size:13px;">${fmtPct(r.mom)}&nbsp;MoM</span>
+        <span style="font-size:12px;color:#64748b;">&nbsp;${fmtPct(r.yoy)}&nbsp;YoY</span>
       </div>
-      <div style="color:#64748b;font-size:12px;margin-top:4px;">${MONTH_NAMES[latest.month]} ${latest.year}</div>
+      <div style="color:#64748b;font-size:11px;margin-top:3px;">${MONTH_NAMES[r.month]} ${r.year}</div>
     </div>`
   }).join("")
 
-  // Historical table
-  const tableRows = [...rows]
-    .sort((a, b) => b.year - a.year || b.month - a.month || a.channel.localeCompare(b.channel))
-    .slice(0, 30)
-    .map(r => `
-    <tr>
-      <td style="padding:8px 12px;border-bottom:1px solid #1e293b;">${MONTH_NAMES[r.month]} ${r.year}</td>
-      <td style="padding:8px 12px;border-bottom:1px solid #1e293b;">${CHANNEL_LABELS[r.channel] ?? r.channel}</td>
-      <td style="padding:8px 12px;border-bottom:1px solid #1e293b;text-align:right;font-weight:600;color:#60a5fa;">$${r.avg_cpm.toFixed(2)}</td>
-    </tr>`).join("")
+  // Full MoM table — one section per channel, all years shown
+  const byChannel = {}
+  for (const r of enriched) {
+    if (!byChannel[r.channel]) byChannel[r.channel] = []
+    byChannel[r.channel].push(r)
+  }
 
-  // AI insights section
-  const aiSection = aiInsights ? `
-  <div style="background:#0f172a;border-radius:8px;padding:20px;margin-bottom:24px;">
-    <h2 style="color:#f1f5f9;font-size:16px;margin:0 0 12px;">AI Analysis</h2>
-    <p style="color:#cbd5e1;font-size:14px;line-height:1.6;margin:0 0 16px;">${aiInsights.summary}</p>
-    ${(aiInsights.insights ?? []).map(i => `
-    <div style="border-left:3px solid #3b82f6;padding-left:12px;margin-bottom:12px;">
-      <div style="color:#93c5fd;font-weight:600;font-size:13px;">${i.title}</div>
-      <div style="color:#94a3b8;font-size:13px;margin-top:4px;">${i.body}</div>
-    </div>`).join("")}
-  </div>` : ""
+  const channelSections = CHANNELS.map(({ key, label }) => {
+    const chRows = (byChannel[key] ?? []).sort((a, b) => b.period_sort - a.period_sort)
+    if (chRows.length === 0) return ""
+    const tableBody = chRows.map(r => `
+      <tr>
+        <td style="padding:6px 10px;border-bottom:1px solid #0f172a;color:#94a3b8;">${MONTH_NAMES[r.month]} ${r.year}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #0f172a;text-align:right;font-weight:600;color:#60a5fa;">$${r.avg_cpm.toFixed(2)}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #0f172a;text-align:right;">${fmtPct(r.mom)}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #0f172a;text-align:right;">${fmtPct(r.yoy)}</td>
+      </tr>`).join("")
+    return `
+    <div style="margin-bottom:24px;">
+      <div style="color:#3b82f6;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;padding:8px 0 6px;">${label}</div>
+      <table style="width:100%;border-collapse:collapse;background:#1e293b;border-radius:6px;overflow:hidden;font-size:12px;">
+        <thead>
+          <tr style="background:#0f172a;">
+            <th style="padding:7px 10px;text-align:left;color:#475569;font-weight:600;font-size:11px;text-transform:uppercase;">Period</th>
+            <th style="padding:7px 10px;text-align:right;color:#475569;font-weight:600;font-size:11px;text-transform:uppercase;">CPM</th>
+            <th style="padding:7px 10px;text-align:right;color:#475569;font-weight:600;font-size:11px;text-transform:uppercase;">MoM Δ</th>
+            <th style="padding:7px 10px;text-align:right;color:#475569;font-weight:600;font-size:11px;text-transform:uppercase;">YoY Δ</th>
+          </tr>
+        </thead>
+        <tbody style="color:#cbd5e1;">${tableBody}</tbody>
+      </table>
+    </div>`
+  }).join("")
 
   // New verified data section
   const newDataSection = verifiedNewData.length > 0 ? `
-  <div style="background:#052e16;border:1px solid #166534;border-radius:8px;padding:16px;margin-bottom:24px;">
-    <h2 style="color:#4ade80;font-size:14px;margin:0 0 8px;">✅ New Verified Data Added This Run</h2>
+  <div style="background:#052e16;border:1px solid #166534;border-radius:8px;padding:14px;margin-bottom:20px;">
+    <div style="color:#4ade80;font-size:13px;font-weight:700;margin-bottom:6px;">✅ New Verified Data Added This Run</div>
     ${verifiedNewData.map(r => `
-    <div style="color:#86efac;font-size:13px;">
+    <div style="color:#86efac;font-size:12px;padding:2px 0;">
       ${CHANNEL_LABELS[r.channel] ?? r.channel}: <strong>$${r.cpm}</strong> CPM — ${MONTH_NAMES[r.month]} ${r.year}
-      <span style="color:#4ade80;font-size:11px;margin-left:8px;">(${(r.sources ?? []).join(", ")})</span>
+      <span style="color:#4ade80;font-size:11px;"> · ${(r.sources ?? []).join(", ")}</span>
     </div>`).join("")}
   </div>` : ""
+
+  // AI insights section
+  const aiSection = aiInsights ? `
+  <div style="background:#0f172a;border-radius:8px;padding:18px;margin-bottom:20px;">
+    <div style="color:#f1f5f9;font-size:14px;font-weight:700;margin-bottom:10px;">AI Analysis</div>
+    <p style="color:#cbd5e1;font-size:13px;line-height:1.6;margin:0 0 14px;">${aiInsights.summary}</p>
+    ${(aiInsights.insights ?? []).map(i => `
+    <div style="border-left:3px solid #3b82f6;padding-left:10px;margin-bottom:10px;">
+      <div style="color:#93c5fd;font-weight:600;font-size:12px;">${i.title}</div>
+      <div style="color:#94a3b8;font-size:12px;margin-top:3px;">${i.body}</div>
+    </div>`).join("")}
+  </div>` : ""
+
+  const dashboardLink = dashboardPath
+    ? `<div style="margin-bottom:20px;text-align:center;">
+        <a href="file://${dashboardPath}" style="background:#3b82f6;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-size:13px;font-weight:600;">
+          Open Interactive Dashboard (with Filters) →
+        </a>
+        <div style="color:#475569;font-size:11px;margin-top:6px;">Filter by year, month, or channel — click the button above or open:<br>${dashboardPath}</div>
+       </div>` : ""
 
   return `<!DOCTYPE html>
 <html>
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="margin:0;padding:0;background:#0f172a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
-<div style="max-width:640px;margin:0 auto;padding:24px;">
+<div style="max-width:680px;margin:0 auto;padding:24px;">
 
   <!-- Header -->
-  <div style="border-bottom:1px solid #1e293b;padding-bottom:16px;margin-bottom:24px;">
-    <div style="color:#3b82f6;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:2px;">CPM Benchmark Report</div>
-    <div style="color:#f1f5f9;font-size:22px;font-weight:700;margin-top:4px;">Media CPM Intelligence</div>
-    <div style="color:#64748b;font-size:13px;margin-top:4px;">Generated ${runDate}</div>
+  <div style="border-bottom:1px solid #1e293b;padding-bottom:14px;margin-bottom:20px;">
+    <div style="color:#3b82f6;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:2px;">CPM Benchmark Report</div>
+    <div style="color:#f1f5f9;font-size:22px;font-weight:700;margin-top:4px;">Media CPM Increases Month over Month</div>
+    <div style="color:#64748b;font-size:12px;margin-top:3px;">2023–2026 · Generated ${runDate}</div>
   </div>
 
   ${newDataSection}
-  ${aiSection}
+  ${dashboardLink}
 
-  <!-- Channel Metrics -->
-  <h2 style="color:#f1f5f9;font-size:14px;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;">Latest CPM by Channel</h2>
+  <!-- Channel Summary -->
+  <div style="color:#f1f5f9;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">Latest CPM by Channel</div>
   ${channelCards}
 
-  <!-- Historical Table -->
-  <h2 style="color:#f1f5f9;font-size:14px;text-transform:uppercase;letter-spacing:1px;margin:24px 0 12px;">Historical Data</h2>
-  <table style="width:100%;border-collapse:collapse;background:#1e293b;border-radius:8px;overflow:hidden;">
-    <thead>
-      <tr style="background:#0f172a;">
-        <th style="padding:10px 12px;text-align:left;color:#64748b;font-size:12px;font-weight:600;text-transform:uppercase;">Period</th>
-        <th style="padding:10px 12px;text-align:left;color:#64748b;font-size:12px;font-weight:600;text-transform:uppercase;">Channel</th>
-        <th style="padding:10px 12px;text-align:right;color:#64748b;font-size:12px;font-weight:600;text-transform:uppercase;">CPM</th>
-      </tr>
-    </thead>
-    <tbody style="color:#cbd5e1;font-size:13px;">
-      ${tableRows || '<tr><td colspan="3" style="padding:16px;text-align:center;color:#64748b;">No historical data available</td></tr>'}
-    </tbody>
-  </table>
+  ${aiSection}
+
+  <!-- Full MoM History -->
+  <div style="color:#f1f5f9;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin:24px 0 12px;">Full Month-over-Month History (2023–2026)</div>
+  ${channelSections}
 
   <!-- Footer -->
-  <div style="border-top:1px solid #1e293b;margin-top:24px;padding-top:16px;color:#475569;font-size:11px;text-align:center;">
+  <div style="border-top:1px solid #1e293b;margin-top:16px;padding-top:14px;color:#475569;font-size:11px;text-align:center;">
     CPM Report Agent · Data from Malloyyo + Brave Search${CONFIG.anthropicKey ? " + Claude AI" : ""}
-    <br>Never invents numbers — only verified sources from Adsposure, eMarketer, WordStream, IAB
+    <br>Never invents numbers — sources: Adsposure, eMarketer, WordStream, IAB
   </div>
 </div>
+</body>
+</html>`
+}
+
+// ── Interactive dashboard (saved to disk) ─────────────────────────────────────
+function buildInteractiveDashboard(rows, runDate) {
+  const enriched = computeChanges(rows)
+  const dataJson = JSON.stringify(enriched.map(r => ({
+    year: r.year, month: r.month, channel: r.channel,
+    label: CHANNEL_LABELS[r.channel] ?? r.channel,
+    cpm: r.avg_cpm, mom: r.mom, yoy: r.yoy,
+    period: `${MONTH_NAMES[r.month]} ${r.year}`
+  })))
+
+  const channelCheckboxes = CHANNELS.map(c =>
+    `<label class="cb-label"><input type="checkbox" class="ch-cb" value="${c.key}" checked><span>${c.label}</span></label>`
+  ).join("")
+
+  const yearCheckboxes = [2023, 2024, 2025, 2026].map(y =>
+    `<label class="cb-label"><input type="checkbox" class="yr-cb" value="${y}" checked><span>${y}</span></label>`
+  ).join("")
+
+  const monthCheckboxes = Object.entries(MONTH_NAMES).map(([m, name]) =>
+    `<label class="cb-label"><input type="checkbox" class="mo-cb" value="${m}" checked><span>${name.slice(0,3)}</span></label>`
+  ).join("")
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CPM Dashboard — Media CPM Month over Month 2023–2026</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#0f172a;color:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100vh}
+  .header{background:#1e293b;padding:20px 28px;border-bottom:1px solid #334155}
+  .header h1{font-size:22px;font-weight:700;color:#f1f5f9}
+  .header p{font-size:13px;color:#64748b;margin-top:4px}
+  .layout{display:flex;gap:0;min-height:calc(100vh - 74px)}
+  .sidebar{width:220px;flex-shrink:0;background:#1e293b;padding:20px;border-right:1px solid #334155}
+  .main{flex:1;padding:24px;overflow-x:auto}
+  .filter-section{margin-bottom:20px}
+  .filter-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:#64748b;margin-bottom:8px}
+  .cb-label{display:flex;align-items:center;gap:6px;font-size:13px;color:#cbd5e1;padding:3px 0;cursor:pointer;user-select:none}
+  .cb-label input{accent-color:#3b82f6;width:14px;height:14px;cursor:pointer}
+  .cb-label span{flex:1}
+  .btn{background:#3b82f6;color:#fff;border:none;border-radius:6px;padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer;width:100%;margin-bottom:6px}
+  .btn-outline{background:transparent;border:1px solid #334155;color:#94a3b8}
+  .stats{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:20px}
+  .stat-card{background:#1e293b;border-radius:8px;padding:14px 16px;min-width:160px;flex:1}
+  .stat-ch{font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:1px}
+  .stat-cpm{font-size:24px;font-weight:700;color:#f1f5f9;margin-top:3px}
+  .stat-chg{font-size:12px;margin-top:2px}
+  .stat-period{font-size:11px;color:#475569;margin-top:2px}
+  table{width:100%;border-collapse:collapse;background:#1e293b;border-radius:8px;overflow:hidden;font-size:13px}
+  th{background:#0f172a;padding:9px 12px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#475569}
+  th.right{text-align:right}
+  td{padding:8px 12px;border-bottom:1px solid #0f172a;color:#cbd5e1}
+  td.right{text-align:right}
+  tr:last-child td{border-bottom:none}
+  tr:hover td{background:#243147}
+  .up{color:#22c55e;font-weight:600}
+  .dn{color:#ef4444;font-weight:600}
+  .fl{color:#f59e0b;font-weight:600}
+  .na{color:#475569}
+  .tag{display:inline-block;background:#1e3a5f;color:#60a5fa;border-radius:4px;padding:2px 6px;font-size:11px}
+  #count{font-size:12px;color:#64748b;margin-bottom:8px}
+  .sort-indicator{color:#3b82f6;margin-left:4px}
+  @media(max-width:640px){
+    .layout{flex-direction:column}
+    .sidebar{width:100%;border-right:none;border-bottom:1px solid #334155}
+    .stats{flex-direction:column}
+  }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>📊 Media CPM Increases Month over Month</h1>
+  <p>2023–2026 · Interactive Dashboard · Generated ${runDate}</p>
+</div>
+<div class="layout">
+  <div class="sidebar">
+    <div class="filter-section">
+      <div class="filter-title">Year</div>
+      ${yearCheckboxes}
+    </div>
+    <div class="filter-section">
+      <div class="filter-title">Month</div>
+      ${monthCheckboxes}
+    </div>
+    <div class="filter-section">
+      <div class="filter-title">Channel</div>
+      ${channelCheckboxes}
+    </div>
+    <button class="btn" onclick="selectAll()">Select All</button>
+    <button class="btn btn-outline" onclick="clearAll()">Clear All</button>
+    <div style="margin-top:16px;font-size:11px;color:#475569">Click column headers to sort</div>
+  </div>
+  <div class="main">
+    <div class="stats" id="stats"></div>
+    <div id="count"></div>
+    <table>
+      <thead>
+        <tr>
+          <th onclick="sortBy('year','month')" style="cursor:pointer">Period <span id="s-period" class="sort-indicator"></span></th>
+          <th onclick="sortBy('channel')" style="cursor:pointer">Channel <span id="s-channel" class="sort-indicator"></span></th>
+          <th class="right" onclick="sortBy('cpm')" style="cursor:pointer">CPM <span id="s-cpm" class="sort-indicator"></span></th>
+          <th class="right" onclick="sortBy('mom')" style="cursor:pointer">MoM Δ <span id="s-mom" class="sort-indicator"></span></th>
+          <th class="right" onclick="sortBy('yoy')" style="cursor:pointer">YoY Δ <span id="s-yoy" class="sort-indicator"></span></th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+</div>
+<script>
+const ALL = ${dataJson};
+
+let sortKey = 'year', sortKey2 = 'month', sortDir = -1;
+
+function pctHtml(v) {
+  if (v === null || v === undefined) return '<span class="na">—</span>';
+  const sign = v >= 0 ? '+' : '';
+  const arrow = v > 0.5 ? '↑' : v < -0.5 ? '↓' : '→';
+  const cls = v > 0.5 ? 'up' : v < -0.5 ? 'dn' : 'fl';
+  return \`<span class="\${cls}">\${arrow} \${sign}\${v.toFixed(1)}%</span>\`;
+}
+
+function getFilters() {
+  const yrs = [...document.querySelectorAll('.yr-cb:checked')].map(e => +e.value);
+  const mos = [...document.querySelectorAll('.mo-cb:checked')].map(e => +e.value);
+  const chs = [...document.querySelectorAll('.ch-cb:checked')].map(e => e.value);
+  return { yrs, mos, chs };
+}
+
+function render() {
+  const { yrs, mos, chs } = getFilters();
+  let data = ALL.filter(r =>
+    yrs.includes(r.year) && mos.includes(r.month) && chs.includes(r.channel)
+  );
+
+  // Sort
+  data.sort((a, b) => {
+    let va = a[sortKey], vb = b[sortKey];
+    if (va === null) va = sortDir > 0 ? Infinity : -Infinity;
+    if (vb === null) vb = sortDir > 0 ? Infinity : -Infinity;
+    const primary = (va > vb ? 1 : va < vb ? -1 : 0) * sortDir;
+    if (primary !== 0) return primary;
+    if (sortKey2) {
+      const va2 = a[sortKey2], vb2 = b[sortKey2];
+      return ((va2 > vb2 ? 1 : va2 < vb2 ? -1 : 0)) * sortDir;
+    }
+    return 0;
+  });
+
+  // Stats cards
+  const latestByChannel = {};
+  for (const r of data) {
+    const cur = latestByChannel[r.channel];
+    if (!cur || r.year * 100 + r.month > cur.year * 100 + cur.month) latestByChannel[r.channel] = r;
+  }
+  const statsEl = document.getElementById('stats');
+  statsEl.innerHTML = Object.values(latestByChannel).map(r => \`
+    <div class="stat-card">
+      <div class="stat-ch">\${r.label}</div>
+      <div class="stat-cpm">$\${r.cpm.toFixed(2)}</div>
+      <div class="stat-chg">\${pctHtml(r.mom)} MoM &nbsp;\${pctHtml(r.yoy)} YoY</div>
+      <div class="stat-period">\${r.period}</div>
+    </div>
+  \`).join('');
+
+  // Table
+  document.getElementById('count').textContent = \`Showing \${data.length} data points\`;
+  document.getElementById('tbody').innerHTML = data.map(r => \`
+    <tr>
+      <td>\${r.period}</td>
+      <td><span class="tag">\${r.label}</span></td>
+      <td class="right" style="font-weight:600;color:#60a5fa;">$\${r.cpm.toFixed(2)}</td>
+      <td class="right">\${pctHtml(r.mom)}</td>
+      <td class="right">\${pctHtml(r.yoy)}</td>
+    </tr>
+  \`).join('') || '<tr><td colspan="5" style="text-align:center;color:#475569;padding:20px;">No data matches the selected filters</td></tr>';
+
+  // Sort indicators
+  ['period','channel','cpm','mom','yoy'].forEach(k => {
+    const el = document.getElementById('s-' + k);
+    if (el) el.textContent = '';
+  });
+  const skName = sortKey === 'year' ? 'period' : sortKey;
+  const ind = document.getElementById('s-' + skName);
+  if (ind) ind.textContent = sortDir > 0 ? ' ▲' : ' ▼';
+}
+
+function sortBy(key, key2) {
+  if (sortKey === key) { sortDir *= -1; }
+  else { sortKey = key; sortKey2 = key2 ?? null; sortDir = key === 'year' ? -1 : 1; }
+  render();
+}
+
+function selectAll() {
+  document.querySelectorAll('.yr-cb,.mo-cb,.ch-cb').forEach(e => e.checked = true);
+  render();
+}
+function clearAll() {
+  document.querySelectorAll('.yr-cb,.mo-cb,.ch-cb').forEach(e => e.checked = false);
+  render();
+}
+
+document.querySelectorAll('.yr-cb,.mo-cb,.ch-cb').forEach(e => e.addEventListener('change', render));
+render();
+</script>
 </body>
 </html>`
 }
@@ -707,8 +964,20 @@ async function main() {
     channel: r.channel, year: r.year, month: r.month, avg_cpm: r.cpm, period_sort: r.year * 100 + r.month
   }))]
 
-  const html    = buildHtmlReport(allRows, webFindings, aiInsights, verifiedNewData, runDate)
-  const subject = `📊 CPM Benchmark Report — ${runDate}`
+  // Save interactive dashboard to disk
+  const logDir = path.resolve(__dirname, "../../logs")
+  const dashboardPath = path.join(logDir, "cpm-dashboard.html")
+  try {
+    const { mkdirSync } = await import("fs")
+    mkdirSync(logDir, { recursive: true })
+    writeFileSync(dashboardPath, buildInteractiveDashboard(allRows, runDate), "utf-8")
+    console.log(`      Dashboard saved: ${dashboardPath}`)
+  } catch (e) {
+    console.warn("      Could not save dashboard:", e.message)
+  }
+
+  const html    = buildHtmlReport(allRows, webFindings, aiInsights, verifiedNewData, runDate, dashboardPath)
+  const subject = `📊 CPM Month-over-Month Report — ${runDate}`
   await sendEmail(subject, html)
 
   console.log("\n" + "=".repeat(60))
