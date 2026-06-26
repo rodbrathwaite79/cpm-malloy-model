@@ -8,49 +8,28 @@
 
 ---
 
-## Step 1: Copy the agent folder to the new Mac
+## Step 1: Run one command on the new Mac
 
-On your **old Mac**, open Terminal and run:
-
-```bash
-# This copies the entire agent folder (scripts, config, node_modules excluded)
-rsync -av --exclude='node_modules' --exclude='dist' \
-  ~/Documents/cpm-agent/agent/cpm-report-agent/ \
-  NEW_MAC_NAME.local:~/Documents/cpm-agent/agent/cpm-report-agent/
-```
-
-Or use AirDrop / USB / iCloud Drive to copy the `cpm-report-agent` folder.
-
-**Files that MUST be copied:**
-- `daily-report.mjs` — the main report script
-- `quality-agent.mjs` — the QA validator
-- `setup-new-mac.sh` — this setup script
-- `com.rod.cpm-report.plist` — the launchd schedule config
-- `package.json` — npm dependencies list
-
-**Files that will be regenerated automatically:**
-- `node_modules/` — recreated by `npm install`
-- `.env` — you'll enter credentials interactively
-
----
-
-## Step 2: Run the setup script
-
-On the **new Mac**, open Terminal and run:
+Open Terminal on the **new Mac** and run:
 
 ```bash
-bash ~/Documents/cpm-agent/agent/cpm-report-agent/setup-new-mac.sh
+curl -sSL https://raw.githubusercontent.com/rodbrathwaite79/cpm-malloy-model/main/agent/setup-new-mac.sh | bash
 ```
 
-The script will automatically:
-1. Install Homebrew (if not present)
-2. Install nvm + Node.js v22
-3. Clone the GitHub repo (CPM database)
-4. Run `npm install`
-5. Ask you to enter API credentials (one time)
-6. Update the launchd plist with the correct Node.js path for this Mac
-7. Install the daily 8am schedule
-8. Run the Quality Agent to validate everything
+That's it. The script downloads everything from GitHub and handles the full setup automatically:
+1. Installs Homebrew (if not present)
+2. Installs nvm + Node.js v22
+3. Clones the GitHub repo (CPM database + Malloy model)
+4. Runs `npm install` (installs duckdb)
+5. Generates the launchd plist for this Mac
+6. Asks you for API credentials (one time, interactive)
+7. Installs the daily 8am schedule via launchd
+8. Runs the Quality Agent to validate everything
+
+**Optional shortcut:** If you have the `.env` file from the old Mac, copy it to  
+`~/Documents/cpm-agent/agent/cpm-report-agent/.env` first — the script will skip the credential prompts entirely.
+
+No files need to be manually copied — everything downloads from GitHub.
 
 ---
 
