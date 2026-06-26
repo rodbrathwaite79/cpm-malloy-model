@@ -2,7 +2,6 @@
   "connections": {
     "cpm_db": {
       "is": "duckdb",
-      "databasePath": "../data/cpm_benchmarks.duckdb"
     }
   }
 }
