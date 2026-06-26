@@ -195,7 +195,7 @@ fi
 
 # Download scripts from GitHub repo (agent/ subfolder)
 RAW_BASE="https://raw.githubusercontent.com/rodbrathwaite79/cpm-malloy-model/main/agent"
-for SCRIPT in daily-report.mjs quality-agent.mjs com.rod.cpm-report.plist package.json MIGRATE.md; do
+for SCRIPT in daily-report.mjs quality-agent.mjs com.rod.cpm-report.plist.template package.json MIGRATE.md; do
   if [ -f "$SCRIPT_DIR/$SCRIPT" ]; then
     ok "$SCRIPT already present"
   else
@@ -213,23 +213,43 @@ chmod +x "$SCRIPT_DIR/daily-report.mjs" "$SCRIPT_DIR/quality-agent.mjs" "$SCRIPT
 # ══════════════════════════════════════════════════════════════════════════════
 step "6. Configure launchd Plist"
 
-if [ -f "$PLIST_SRC" ]; then
-  # Replace the Node.js path in the plist with the path on this Mac
-  OLD_NODE_PATH=$(grep -o '<string>/[^<]*node</string>' "$PLIST_SRC" | head -1 | sed 's/<[^>]*>//g' || echo "")
-  NEW_NODE_PATH="$NODE_BIN"
-
-  if [ -n "$OLD_NODE_PATH" ] && [ "$OLD_NODE_PATH" != "$NEW_NODE_PATH" ]; then
-    info "Updating Node.js path in plist: $OLD_NODE_PATH → $NEW_NODE_PATH"
-    sed -i.bak "s|$OLD_NODE_PATH|$NEW_NODE_PATH|g" "$PLIST_SRC"
-    ok "Node.js path updated"
-  elif [ "$OLD_NODE_PATH" = "$NEW_NODE_PATH" ]; then
-    ok "Node.js path already correct ($NODE_BIN)"
-  else
-    warn "Could not determine current Node path in plist — check manually"
-  fi
-else
-  warn "Plist not found — will need to be configured after credential setup"
-fi
+# Generate the plist fresh for this Mac — credentials filled in at Step 7
+info "Generating launchd plist for this Mac..."
+cat > "$PLIST_SRC" <<PLISTEOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.rod.cpm-report</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>${NODE_BIN}</string>
+    <string>${SCRIPT_DIR}/daily-report.mjs</string>
+  </array>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key><integer>8</integer>
+    <key>Minute</key><integer>0</integer>
+  </dict>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>BRAVE_API_KEY</key><string>BRAVE_PLACEHOLDER</string>
+    <key>GITHUB_TOKEN</key><string>GITHUB_PLACEHOLDER</string>
+    <key>SENDGRID_API_KEY</key><string>SENDGRID_PLACEHOLDER</string>
+    <key>MALLOYYO_URL</key><string>MALLOYYO_PLACEHOLDER</string>
+    <key>EMAIL_TO</key><string>EMAILTO_PLACEHOLDER</string>
+  </dict>
+  <key>StandardOutPath</key>
+  <string>${LOG_DIR}/cpm-report.log</string>
+  <key>StandardErrorPath</key>
+  <string>${LOG_DIR}/cpm-report-error.log</string>
+  <key>RunAtLoad</key>
+  <false/>
+</dict>
+</plist>
+PLISTEOF
+ok "Plist generated at $PLIST_SRC"
 
 # ══════════════════════════════════════════════════════════════════════════════
 # STEP 7: Credentials
@@ -283,32 +303,18 @@ ENVFILE
 
   ok ".env file created at $ENV_FILE"
 
-  # Also update the plist with credentials
+  # Fill credential placeholders into the plist
   if [ -f "$PLIST_SRC" ]; then
-    info "Updating plist with credentials..."
-    python3 - <<PYUPDATE
-import plistlib, os
-
-plist_path = os.path.expanduser("$PLIST_SRC")
-with open(plist_path, 'rb') as f:
-    plist = plistlib.load(f)
-
-env = plist.get('EnvironmentVariables', {})
-env['BRAVE_API_KEY']    = """${BRAVE_KEY}"""
-env['GITHUB_TOKEN']     = """${GITHUB_KEY}"""
-env['SENDGRID_API_KEY'] = """${SENDGRID_KEY}"""
-env['EMAIL_TO']         = """${EMAIL_TO_VAL}"""
-if """${ANTHROPIC_KEY:-}""":
-    env['ANTHROPIC_API_KEY'] = """${ANTHROPIC_KEY:-}"""
-plist['EnvironmentVariables'] = env
-plist['ProgramArguments'][0] = """${NODE_BIN}"""
-
-with open(plist_path, 'wb') as f:
-    plistlib.dump(plist, f)
-
-print("  Plist updated with credentials and correct Node path")
-PYUPDATE
-    ok "Plist credentials updated"
+    info "Inserting credentials into plist..."
+    sed -i.bak \
+      -e "s|BRAVE_PLACEHOLDER|${BRAVE_KEY}|g" \
+      -e "s|GITHUB_PLACEHOLDER|${GITHUB_KEY}|g" \
+      -e "s|SENDGRID_PLACEHOLDER|${SENDGRID_KEY}|g" \
+      -e "s|MALLOYYO_PLACEHOLDER|https://malloyyo-c7i3hmkly-brathwaite.vercel.app|g" \
+      -e "s|EMAILTO_PLACEHOLDER|${EMAIL_TO_VAL}|g" \
+      "$PLIST_SRC"
+    rm -f "$PLIST_SRC.bak"
+    ok "Plist credentials set"
   fi
 fi
 
