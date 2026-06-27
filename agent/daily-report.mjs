@@ -832,7 +832,7 @@ render();
 }
 
 // ── SendGrid email ─────────────────────────────────────────────────────────────
-async function sendEmail(subject, html) {
+async function sendEmail(subject, html, attachments = []) {
   if (!CONFIG.sendgridApiKey) { console.warn("SENDGRID_API_KEY not set — skipping email"); return }
 
   const personalization = { to: [{ email: CONFIG.emailTo }] }
@@ -847,6 +847,7 @@ async function sendEmail(subject, html) {
     reply_to: { email: CONFIG.emailTo },
     subject,
     content: [{ type: "text/html", value: html }],
+    ...(attachments.length > 0 ? { attachments } : {}),
   }
 
   const res = await post(
@@ -978,7 +979,21 @@ async function main() {
 
   const html    = buildHtmlReport(allRows, webFindings, aiInsights, verifiedNewData, runDate, dashboardPath)
   const subject = `📊 CPM Month-over-Month Report — ${runDate}`
-  await sendEmail(subject, html)
+
+  // Attach the interactive dashboard HTML
+  const attachments = []
+  if (existsSync(dashboardPath)) {
+    const dashContent = readFileSync(dashboardPath, "utf-8")
+    attachments.push({
+      content:     Buffer.from(dashContent, "utf-8").toString("base64"),
+      type:        "text/html",
+      filename:    "CPM-Dashboard.html",
+      disposition: "attachment",
+    })
+    console.log("      Dashboard attached to email")
+  }
+
+  await sendEmail(subject, html, attachments)
 
   console.log("\n" + "=".repeat(60))
   console.log("✅ Done")
