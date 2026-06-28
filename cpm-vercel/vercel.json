@@ -1,0 +1,16 @@
+{
+  "crons": [
+    {
+      "path": "/api/cpm-report",
+      "schedule": "0 13 * * *"
+    }
+  ],
+  "functions": {
+    "api/cpm-report.js": {
+      "maxDuration": 60
+    },
+    "api/metrics.js": {
+      "maxDuration": 10
+    }
+  }
+}
