@@ -195,7 +195,7 @@ fi
 
 # Download scripts from GitHub repo (agent/ subfolder)
 RAW_BASE="https://raw.githubusercontent.com/rodbrathwaite79/cpm-malloy-model/main/agent"
-for SCRIPT in daily-report.mjs quality-agent.mjs package.json MIGRATE.md; do
+for SCRIPT in daily-report.mjs quality-agent.mjs agent.ts MIGRATE.md; do
   if [ -f "$SCRIPT_DIR/$SCRIPT" ]; then
     ok "$SCRIPT already present"
   else
@@ -236,7 +236,7 @@ cat > "$PLIST_SRC" <<PLISTEOF
   <dict>
     <key>BRAVE_API_KEY</key><string>BRAVE_PLACEHOLDER</string>
     <key>GITHUB_TOKEN</key><string>GITHUB_PLACEHOLDER</string>
-    <key>SENDGRID_API_KEY</key><string>SENDGRID_PLACEHOLDER</string>
+    <key>RESEND_API_KEY</key><string>RESEND_PLACEHOLDER</string>
     <key>MALLOYYO_URL</key><string>MALLOYYO_PLACEHOLDER</string>
     <key>EMAIL_TO</key><string>EMAILTO_PLACEHOLDER</string>
   </dict>
@@ -273,23 +273,25 @@ if [ ! -f "$ENV_FILE" ]; then
   echo -e "  ${CYAN}(Get these from the credentials document or prior Mac's .env file)${NC}"
   echo ""
 
-  read -p "  BRAVE_API_KEY     (from search.brave.com): " -r BRAVE_KEY
+  read -p "  BRAVE_API_KEY       (from search.brave.com): " -r BRAVE_KEY
   echo ""
-  read -p "  GITHUB_TOKEN      (from github.com/settings/tokens, needs 'repo' scope): " -r GITHUB_KEY
+  read -p "  GITHUB_TOKEN        (from github.com/settings/tokens, needs 'repo' scope): " -r GITHUB_KEY
   echo ""
-  read -p "  SENDGRID_API_KEY  (from app.sendgrid.com/settings/api_keys): " -r SENDGRID_KEY
+  echo -e "  ${CYAN}Resend API key — free at resend.com (3,000 emails/month, no credit card):${NC}"
+  echo -e "  ${CYAN}Sign up → Dashboard → API Keys → Create API Key${NC}"
+  read -p "  RESEND_API_KEY      (starts with re_): " -r RESEND_KEY
   echo ""
-  read -p "  EMAIL_TO          (your email, default rod.brathwaite@gmail.com): " -r EMAIL_TO_VAL
+  read -p "  EMAIL_TO            (recipient email, default rod.brathwaite@gmail.com): " -r EMAIL_TO_VAL
   EMAIL_TO_VAL="${EMAIL_TO_VAL:-rod.brathwaite@gmail.com}"
   echo ""
-  read -p "  ANTHROPIC_API_KEY (optional, press Enter to skip): " -r ANTHROPIC_KEY
+  read -p "  ANTHROPIC_API_KEY   (optional, press Enter to skip): " -r ANTHROPIC_KEY
   echo ""
 
   # Write .env
   cat > "$ENV_FILE" <<ENVFILE
 BRAVE_API_KEY=${BRAVE_KEY}
 GITHUB_TOKEN=${GITHUB_KEY}
-SENDGRID_API_KEY=${SENDGRID_KEY}
+RESEND_API_KEY=${RESEND_KEY}
 MALLOYYO_URL=https://malloyyo-c7i3hmkly-brathwaite.vercel.app
 EMAIL_TO=${EMAIL_TO_VAL}
 # CC recipients (comma-separated) — uncomment when ready:
@@ -309,7 +311,7 @@ ENVFILE
     sed -i.bak \
       -e "s|BRAVE_PLACEHOLDER|${BRAVE_KEY}|g" \
       -e "s|GITHUB_PLACEHOLDER|${GITHUB_KEY}|g" \
-      -e "s|SENDGRID_PLACEHOLDER|${SENDGRID_KEY}|g" \
+      -e "s|RESEND_PLACEHOLDER|${RESEND_KEY}|g" \
       -e "s|MALLOYYO_PLACEHOLDER|https://malloyyo-c7i3hmkly-brathwaite.vercel.app|g" \
       -e "s|EMAILTO_PLACEHOLDER|${EMAIL_TO_VAL}|g" \
       "$PLIST_SRC"
@@ -360,6 +362,27 @@ else
 fi
 
 # ══════════════════════════════════════════════════════════════════════════════
+# STEP 10: Guild CLI (optional — for agent monitoring dashboard)
+# ══════════════════════════════════════════════════════════════════════════════
+step "10. Guild CLI (optional)"
+
+if command -v guild &>/dev/null; then
+  ok "Guild CLI already installed ($(guild --version 2>/dev/null || echo 'version unknown'))"
+else
+  info "Guild CLI is optional — it lets you monitor the CPM agent in the Guild UI."
+  info "The daily report (daily-report.mjs) runs WITHOUT Guild — it uses launchd."
+  info "To install Guild CLI later:"
+  echo ""
+  echo "     npm install -g @guildai/guild-cli"
+  echo "     guild login"
+  echo ""
+  info "The CPM agent is already published as rod.brathwaite~cpm-report-agent."
+  info "After login, send { \"reset\": true } via Guild UI if you want a clean"
+  info "metrics slate on the new machine."
+  warn "Guild CLI not installed — skipping (run the install above when ready)"
+fi
+
+# ══════════════════════════════════════════════════════════════════════════════
 # DONE
 # ══════════════════════════════════════════════════════════════════════════════
 echo ""
@@ -367,15 +390,22 @@ echo -e "${BOLD}═════════════════════�
 echo -e "${GREEN}${BOLD}  ✅ Setup Complete!${NC}"
 echo ""
 echo "  Daily CPM report runs every morning at 8:00 AM."
+echo "  Agent metrics are saved to: $LOG_DIR/agent-metrics.json"
+echo "  (File is auto-created on the first successful report run.)"
 echo ""
 echo -e "  ${BOLD}Useful commands:${NC}"
 echo "   Run report now:  node $SCRIPT_DIR/daily-report.mjs"
 echo "   Run QA check:    node $SCRIPT_DIR/quality-agent.mjs"
 echo "   View logs:       tail -f $LOG_DIR/cpm-report.log"
+echo "   View metrics:    cat $LOG_DIR/agent-metrics.json"
 echo "   Remove schedule: launchctl unload $PLIST_DST"
 echo ""
 echo -e "  ${YELLOW}If any checks failed above:${NC}"
 echo "   1. Fix the issue noted in the QA output"
 echo "   2. Re-run QA: node $SCRIPT_DIR/quality-agent.mjs --fix"
+echo ""
+echo -e "  ${YELLOW}Guild agent metrics:${NC}"
+echo "   After the first real run, open Guild UI and send { \"reset\": true }"
+echo "   to the cpm-report-agent if you want a clean metrics slate."
 echo ""
 echo -e "${BOLD}════════════════════════════════════════════════════════${NC}"

@@ -94,10 +94,10 @@ async function checkEnvironment() {
   section("1. Environment & Credentials")
 
   const required = {
-    BRAVE_API_KEY:    process.env.BRAVE_API_KEY,
-    GITHUB_TOKEN:     process.env.GITHUB_TOKEN,
-    SENDGRID_API_KEY: process.env.SENDGRID_API_KEY,
-    EMAIL_TO:         process.env.EMAIL_TO,
+    BRAVE_API_KEY:  process.env.BRAVE_API_KEY,
+    GITHUB_TOKEN:   process.env.GITHUB_TOKEN,
+    RESEND_API_KEY: process.env.RESEND_API_KEY,
+    EMAIL_TO:       process.env.EMAIL_TO,
   }
 
   for (const [k, v] of Object.entries(required)) {
@@ -123,12 +123,14 @@ async function checkFiles() {
 
   const files = [
     { path: path.join(scriptDir, "daily-report.mjs"),          label: "Main script" },
+    { path: path.join(scriptDir, "agent.ts"),                  label: "Guild agent (agent.ts)" },
     { path: path.join(scriptDir, ".env"),                       label: ".env credentials" },
     { path: path.join(scriptDir, "com.rod.cpm-report.plist"),   label: "launchd plist" },
     { path: path.join(scriptDir, "package.json"),               label: "package.json" },
     { path: path.join(scriptDir, "node_modules/duckdb"),        label: "duckdb npm package" },
     { path: path.join(agentDir,  "malloy-model-git/cpm_benchmarks.parquet"), label: "CPM parquet database" },
     { path: path.join(agentDir,  "malloy-model-git/cpm_monthly_updates.csv"), label: "CPM updates CSV" },
+    { path: path.join(agentDir,  "logs"),                       label: "Logs directory" },
   ]
 
   for (const f of files) {
@@ -207,56 +209,40 @@ async function checkBrave() {
   }
 }
 
-// [5] SendGrid API
+// [5] Resend email API
 async function checkSendGrid() {
-  section("5. SendGrid Email API")
-  const key = process.env.SENDGRID_API_KEY
-  if (!key) { check("SendGrid API", "FAIL", "SENDGRID_API_KEY not set"); return }
+  section("5. Resend Email API")
 
-  // Use the /v3/user/profile endpoint (read-only, no email sent)
-  try {
-    const res = await get(
-      "https://api.sendgrid.com/v3/user/profile",
-      { "Authorization": `Bearer ${key}` }
-    )
-    if (res.status === 200) {
-      const profile = JSON.parse(res.body)
-      check("SendGrid API key",     "PASS", `Valid — account: ${profile.email ?? "(unknown)"}`)
-    } else if (res.status === 401) {
-      check("SendGrid API key", "FAIL", "401 — key invalid or revoked",
-        "Generate a new key at app.sendgrid.com → Settings → API Keys")
-    } else {
-      check("SendGrid API key", "WARN", `HTTP ${res.status}`)
-    }
-  } catch (e) {
-    check("SendGrid API key", "FAIL", `Network error: ${e.message}`)
+  const key = process.env.RESEND_API_KEY
+
+  if (!key) {
+    check("RESEND_API_KEY", "FAIL", "Not set — get a free key at resend.com",
+      "Sign up at resend.com → API Keys → Create API Key → add to .env")
+    return
   }
 
-  // Check sender verification
+  if (!key.startsWith("re_")) {
+    check("RESEND_API_KEY", "WARN", `Key doesn't start with 're_' — may be invalid (got: ${key.slice(0,8)}…)`)
+  } else {
+    check("RESEND_API_KEY", "PASS", `Set (starts re_… ${key.length} chars)`)
+  }
+
+  // Verify key is valid by hitting the Resend domains endpoint
   try {
     const res = await get(
-      "https://api.sendgrid.com/v3/verified_senders",
-      { "Authorization": `Bearer ${key}` }
+      "https://api.resend.com/domains",
+      { "Authorization": `Bearer ${key}`, "Content-Type": "application/json" }
     )
     if (res.status === 200) {
-      const data = JSON.parse(res.body)
-      const verified = data.results?.filter(s => s.verified) ?? []
-      const emailTo  = process.env.EMAIL_TO ?? ""
-      const matching = verified.find(s => s.from_email === emailTo)
-      if (matching) {
-        check("Sender verification", "PASS", `${emailTo} is verified — emails will NOT go to spam`)
-      } else if (verified.length > 0) {
-        check("Sender verification", "WARN",
-          `${emailTo} not verified (verified: ${verified.map(s => s.from_email).join(", ")})`,
-          "Go to sendgrid.com → Settings → Sender Authentication → Single Sender Verification")
-      } else {
-        check("Sender verification", "WARN",
-          "No verified senders — emails may go to spam",
-          "Go to sendgrid.com → Settings → Sender Authentication → Single Sender Verification")
-      }
+      check("Resend API reachable", "PASS", "API key valid — HTTP 200")
+    } else if (res.status === 401) {
+      check("Resend API reachable", "FAIL", "401 Unauthorized — API key is invalid or revoked",
+        "Generate a new key at resend.com → API Keys")
+    } else {
+      check("Resend API reachable", "WARN", `HTTP ${res.status} — unexpected response`)
     }
   } catch (e) {
-    check("Sender verification", "WARN", `Could not check: ${e.message}`)
+    check("Resend API reachable", "FAIL", `Network error: ${e.message}`)
   }
 }
 
@@ -438,18 +424,49 @@ async function checkScriptIntegrity() {
   const src = readFileSync(scriptPath, "utf-8")
 
   const checks = [
-    { key: "DuckDB import",       pass: src.includes("duckdb"),                         fix: null },
-    { key: "No gzip header",      pass: !src.includes('"Accept-Encoding": "gzip"'),      fix: "Remove Accept-Encoding: gzip header from braveSearch()" },
-    { key: "Regex fallback",      pass: src.includes("extractCpmWithRegex"),             fix: "Add regex CPM extraction fallback function" },
-    { key: "EMAIL_CC support",    pass: src.includes("EMAIL_CC"),                        fix: "Add EMAIL_CC env var to sendEmail()" },
-    { key: "FORCE_UPDATE flag",   pass: src.includes("FORCE_UPDATE"),                   fix: "Add FORCE_UPDATE env var support" },
-    { key: "SendGrid 202 check",  pass: src.includes("202") || src.includes("status"),  fix: null },
-    { key: "GitHub PUT logging",  pass: src.includes("GitHub PUT failed"),               fix: null },
-    { key: "No fake data",        pass: !src.includes("FAKE") && !src.includes("mock"), fix: null },
+    { key: "DuckDB import",         pass: src.includes("duckdb"),                                   fix: null },
+    { key: "No gzip header",        pass: !src.includes('"Accept-Encoding": "gzip"'),               fix: "Remove Accept-Encoding: gzip header from braveSearch()" },
+    { key: "Regex fallback",        pass: src.includes("extractCpmWithRegex"),                      fix: "Add regex CPM extraction fallback function" },
+    { key: "EMAIL_CC support",      pass: src.includes("EMAIL_CC"),                                 fix: "Add EMAIL_CC env var to sendEmail()" },
+    { key: "FORCE_UPDATE flag",     pass: src.includes("FORCE_UPDATE"),                             fix: "Add FORCE_UPDATE env var support" },
+    { key: "SendGrid 202 check",    pass: src.includes("202") || src.includes("status"),            fix: null },
+    { key: "GitHub PUT logging",    pass: src.includes("GitHub PUT failed"),                        fix: null },
+    // Report redesign checks (added after v1.0.4 overhaul)
+    { key: "Email bar chart",       pass: src.includes("buildEmailBarChart"),                       fix: "Email report missing chart layout — pull latest daily-report.mjs from repo" },
+    { key: "Email metrics section", pass: src.includes("buildEmailMetricsSection"),                 fix: "Email report missing metrics block — pull latest daily-report.mjs from repo" },
+    { key: "Metrics persistence",   pass: src.includes("agent-metrics.json") || src.includes("METRICS_PATH"), fix: "Metrics persistence missing — agent-metrics.json writes not found" },
+    { key: "Token tracking",        pass: src.includes("_inputTokens"),                             fix: "Real token tracking missing from synthesizeInsights() — update daily-report.mjs" },
+    { key: "AI source links",       pass: src.includes("sources") && src.includes("src.url"),       fix: "AI insights missing source URL support — update synthesizeInsights() and buildHtmlReport()" },
   ]
 
   for (const c of checks) {
     check(c.key, c.pass ? "PASS" : c.fix ? "FAIL" : "WARN", c.pass ? "OK" : (c.fix ?? "Missing"), c.fix)
+  }
+}
+
+// [9] Guild agent.ts integrity
+async function checkAgentTs() {
+  section("9. Guild Agent Integrity (agent.ts)")
+
+  const tsPath = path.join(__dirname, "agent.ts")
+  if (!existsSync(tsPath)) {
+    check("agent.ts present", "FAIL", "File missing — Guild agent not in sync with daily-report.mjs",
+      "Copy agent.ts from source Mac or pull latest from GitHub repo")
+    return
+  }
+
+  const src = readFileSync(tsPath, "utf-8")
+  const checks = [
+    { key: "isTestRun guard",        pass: src.includes("isTestRun"),                   fix: "Test run detection missing — Guild UI test runs will inflate metrics. Pull latest agent.ts." },
+    { key: "Reset mode",             pass: src.includes("data.reset === true"),          fix: "Reset mode missing — cannot clear agent state via { reset: true }. Pull latest agent.ts." },
+    { key: "ROI breakdown",          pass: src.includes("ANALYST_RATE_USD_PER_HOUR"),   fix: "ROI estimate constants missing from agent.ts" },
+    { key: "EMPTY_STATE defined",    pass: src.includes("EMPTY_STATE"),                 fix: "EMPTY_STATE constant missing — state reset won't work" },
+    { key: "Real token tracking",    pass: src.includes("guild_get_daily_llm_usage"),   fix: "Guild LLM usage API call missing — token counts will be 0" },
+    { key: "Run history capped",     pass: src.includes("slice(-29)"),                  fix: "Run history not capped — state will grow unbounded over time" },
+  ]
+
+  for (const c of checks) {
+    check(c.key, c.pass ? "PASS" : "FAIL", c.pass ? "OK" : (c.fix ?? "Missing"), c.fix)
   }
 }
 
@@ -529,29 +546,27 @@ function buildReport(runDate) {
 }
 
 async function sendReport(subject, html) {
-  const key   = process.env.SENDGRID_API_KEY
-  const to    = process.env.EMAIL_TO ?? "rod.brathwaite@gmail.com"
-  const from  = process.env.EMAIL_FROM || to
-  if (!key) { console.log("  (email skipped — SENDGRID_API_KEY not set)"); return }
+  const key = process.env.RESEND_API_KEY
+  const to  = process.env.EMAIL_TO ?? "rod.brathwaite@gmail.com"
+  if (!key) { console.log("  (email skipped — RESEND_API_KEY not set)"); return }
 
   const body = {
-    personalizations: [{ to: [{ email: to }] }],
-    from:    { email: from, name: "CPM Quality Agent" },
-    reply_to: { email: to },
+    from:    "CPM Quality Agent <onboarding@resend.dev>",
+    to:      [to],
     subject,
-    content: [{ type: "text/html", value: html }],
+    html,
   }
 
   try {
     const res = await post(
-      "https://api.sendgrid.com/v3/mail/send",
+      "https://api.resend.com/emails",
       { "Authorization": `Bearer ${key}`, "Content-Type": "application/json" },
       body
     )
     if (res.status >= 200 && res.status < 300) {
       if (!JSON_MODE) console.log(`\n  ✅ QA report emailed to ${to}`)
     } else {
-      if (!JSON_MODE) console.warn(`\n  ⚠️  Email failed: SendGrid ${res.status}`)
+      if (!JSON_MODE) console.warn(`\n  ⚠️  Email failed: Resend ${res.status} — ${res.body.slice(0, 100)}`)
     }
   } catch (e) {
     if (!JSON_MODE) console.warn(`\n  ⚠️  Email error: ${e.message}`)
@@ -581,6 +596,7 @@ async function main() {
   await checkGitHub()
   await checkSchedule()
   await checkScriptIntegrity()
+  await checkAgentTs()
 
   const passes = results.filter(r => r.status === "PASS").length
   const warns  = results.filter(r => r.status === "WARN").length

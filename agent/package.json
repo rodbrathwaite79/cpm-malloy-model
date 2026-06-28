@@ -1,25 +1,11 @@
 {
   "name": "cpm-report-agent",
   "version": "1.0.0",
-  "description": "Monthly Media CPM benchmark report agent — Guild.ai + Malloyyo",
+  "description": "CPM benchmark report — standalone Node.js script",
   "private": true,
   "type": "module",
-  "scripts": {
-    "test": "guild agent test",
-    "chat": "guild agent chat",
-    "save": "guild agent save --message",
-    "publish": "guild agent publish",
-    "postbuild": "node fix-exports.mjs"
-  },
+  "engines": { "node": ">=20" },
   "dependencies": {
-    "@guildai/agents-sdk": "latest",
     "duckdb": "latest"
-  },
-  "devDependencies": {
-    "@types/node": "^20.0.0",
-    "typescript": "^5.4.0"
-  },
-  "engines": {
-    "node": ">=20"
   }
 }

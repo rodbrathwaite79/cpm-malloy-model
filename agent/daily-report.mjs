@@ -14,7 +14,7 @@
  * Required environment variables (set in .env or the launchd plist):
  *   BRAVE_API_KEY        — Brave Search API key
  *   GITHUB_TOKEN         — GitHub PAT with repo scope
- *   SENDGRID_API_KEY     — SendGrid API key
+ *   RESEND_API_KEY       — Resend API key (free at resend.com — 3,000 emails/month)
  *   MALLOYYO_URL         — Malloyyo base URL (e.g. https://malloyyo-c7i3hmkly-brathwaite.vercel.app)
  *   EMAIL_TO             — Primary recipient (default: rod.brathwaite@gmail.com)
  *
@@ -31,7 +31,6 @@ import { readFileSync, writeFileSync, existsSync, createReadStream } from "fs"
 import { createInterface } from "readline"
 import path from "path"
 import { fileURLToPath } from "url"
-
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 // ── Load .env if present ──────────────────────────────────────────────────────
@@ -45,14 +44,14 @@ if (existsSync(envPath)) {
 
 // ── Config ────────────────────────────────────────────────────────────────────
 const CONFIG = {
-  braveApiKey:     process.env.BRAVE_API_KEY     ?? "",
-  githubToken:     process.env.GITHUB_TOKEN      ?? "",
-  sendgridApiKey:  process.env.SENDGRID_API_KEY  ?? "",
-  malloyuoUrl:     process.env.MALLOYYO_URL      ?? "",
-  emailTo:         process.env.EMAIL_TO          ?? "rod.brathwaite@gmail.com",
-  emailCc:         (process.env.EMAIL_CC ?? "").split(",").map(s => s.trim()).filter(Boolean),
-  forceUpdate:     process.env.FORCE_UPDATE === "true",
-  anthropicKey:    process.env.ANTHROPIC_API_KEY ?? "",
+  braveApiKey:       process.env.BRAVE_API_KEY       ?? "",
+  githubToken:       process.env.GITHUB_TOKEN        ?? "",
+  resendApiKey:      process.env.RESEND_API_KEY      ?? "",
+  malloyuoUrl:       process.env.MALLOYYO_URL        ?? "",
+  emailTo:           process.env.EMAIL_TO            ?? "rod.brathwaite@gmail.com",
+  emailCc:           (process.env.EMAIL_CC ?? "").split(",").map(s => s.trim()).filter(Boolean),
+  forceUpdate:       process.env.FORCE_UPDATE === "true",
+  anthropicKey:      process.env.ANTHROPIC_API_KEY   ?? "",
 }
 
 const GITHUB_OWNER = "rodbrathwaite79"
@@ -352,8 +351,8 @@ async function synthesizeInsights(rows, webFindings) {
     .map(([ch, pts]) => `${CHANNEL_LABELS[ch] ?? ch}: ${pts.map(p => `${MONTH_NAMES[p.month]} ${p.year} $${p.avg.toFixed(2)}`).join(", ")}`)
     .join("\n")
 
-  const webSummary = webFindings.slice(0, 6)
-    .map(f => `${f.title}\n${f.excerpt}`)
+  const webSummary = webFindings.slice(0, 8)
+    .map((f, i) => `[${i + 1}] TITLE: ${f.title}\nURL: ${f.url}\nEXCERPT: ${f.excerpt}`)
     .join("\n\n---\n\n")
 
   const prompt = `You are a senior media analyst. Write a brief executive summary and 3 key insights for this CPM benchmark report.
@@ -361,31 +360,43 @@ async function synthesizeInsights(rows, webFindings) {
 HISTORICAL DATA:
 ${dataSummary}
 
-RECENT WEB RESEARCH:
+RECENT WEB RESEARCH (use these exact URLs when citing sources):
 ${webSummary}
 
-Return ONLY valid JSON:
+Return ONLY valid JSON (no markdown, no code fences):
 {
-  "summary": "2-3 sentence executive overview",
+  "summary": "2-3 sentence executive overview citing specific CPM figures from the historical data",
   "insights": [
-    {"title": "short title", "body": "2 sentence insight with data"}
+    {
+      "title": "short title (4-6 words)",
+      "body": "2 sentence insight citing a specific number from the data above",
+      "sources": [{"title": "Source Name", "url": "https://exact-url-from-web-research-above"}]
+    }
   ]
 }
 
-Do NOT invent CPM numbers. Only cite data above.`
+Rules:
+- Do NOT invent CPM numbers. Only cite data above.
+- Each insight MUST cite at least one URL from the RECENT WEB RESEARCH section above.
+- Use the exact URLs provided — do not modify or guess URLs.
+- Return exactly 3 insights.`
 
   try {
     const res = await post(
       "https://api.anthropic.com/v1/messages",
       { "x-api-key": CONFIG.anthropicKey, "anthropic-version": "2023-06-01", "Content-Type": "application/json" },
-      { model: "claude-haiku-4-5-20251001", max_tokens: 512, messages: [{ role: "user", content: prompt }] }
+      { model: "claude-haiku-4-5-20251001", max_tokens: 1024, messages: [{ role: "user", content: prompt }] }
     )
     if (res.status !== 200) return null
     const data = JSON.parse(res.body)
     const text = data.content?.[0]?.text ?? ""
     const s = text.indexOf("{"), e = text.lastIndexOf("}")
     if (s < 0 || e <= s) return null
-    return JSON.parse(text.slice(s, e + 1))
+    const parsed = JSON.parse(text.slice(s, e + 1))
+    // Attach real token counts from the API response
+    parsed._inputTokens  = data.usage?.input_tokens  ?? 0
+    parsed._outputTokens = data.usage?.output_tokens ?? 0
+    return parsed
   } catch { return null }
 }
 
@@ -491,8 +502,223 @@ function fmtPct(v) {
   return `<span style="color:${color};font-weight:600;">${arrow} ${sign}${v.toFixed(1)}%</span>`
 }
 
+// ── Agent metrics persistence ─────────────────────────────────────────────────
+const METRICS_PATH = path.resolve(__dirname, "../../logs/agent-metrics.json")
+
+const EMPTY_METRICS = {
+  totalRuns: 0, autonomousRuns: 0, hitlRuns: 0, errorRuns: 0,
+  totalInputTokens: 0, totalOutputTokens: 0,
+  runHistory: [],  // last 30 runs
+}
+
+function loadMetrics() {
+  try {
+    if (existsSync(METRICS_PATH)) return { ...EMPTY_METRICS, ...JSON.parse(readFileSync(METRICS_PATH, "utf-8")) }
+  } catch { /* ignore */ }
+  return { ...EMPTY_METRICS }
+}
+
+function saveMetrics(metrics) {
+  try {
+    writeFileSync(METRICS_PATH, JSON.stringify(metrics, null, 2), "utf-8")
+  } catch (e) { console.warn("Could not save metrics:", e.message) }
+}
+
+async function saveMetricsAsync(metrics) {
+  try {
+    const { mkdirSync } = await import("fs")
+    mkdirSync(path.dirname(METRICS_PATH), { recursive: true })
+    writeFileSync(METRICS_PATH, JSON.stringify(metrics, null, 2), "utf-8")
+  } catch (e) { console.warn("Could not save metrics:", e.message) }
+}
+
+// ── Email metrics section ─────────────────────────────────────────────────────
+function buildEmailMetricsSection(metrics, thisRun) {
+  const hitlRate     = metrics.totalRuns > 0 ? (metrics.hitlRuns / metrics.totalRuns * 100).toFixed(1) : "0.0"
+  const autonomyRate = metrics.totalRuns > 0 ? (metrics.autonomousRuns / metrics.totalRuns * 100).toFixed(1) : "0.0"
+
+  // ROI: each autonomous run saves ~15 min of analyst time @ $100/hr = $25
+  // Token cost shown as raw counts (no made-up $/token — check console.anthropic.com for actuals)
+  const totalTok      = metrics.totalInputTokens + metrics.totalOutputTokens
+  const thisTok       = thisRun.inputTokens + thisRun.outputTokens
+  const humanSavedMin = metrics.autonomousRuns * 15
+
+  const outcomeIcon  = thisRun.outcome === "autonomous" ? "✅" : thisRun.outcome === "hitl" ? "⚠️" : "❌"
+  const outcomeLabel = thisRun.outcome === "autonomous" ? "Autonomous — no human needed"
+                     : thisRun.outcome === "hitl"       ? "HITL triggered — emailed for help"
+                     : "Error"
+
+  const roiLabel = metrics.autonomousRuns === 0 ? "No autonomous runs yet"
+    : `~${humanSavedMin} min analyst time saved (${metrics.autonomousRuns} runs × 15 min)`
+
+  const sparkRows = [...metrics.runHistory].reverse().slice(0, 10).map(r => {
+    const color = r.outcome === "autonomous" ? "#22c55e" : r.outcome === "hitl" ? "#f59e0b" : "#ef4444"
+    const icon  = r.outcome === "autonomous" ? "✅" : r.outcome === "hitl" ? "⚠️" : "❌"
+    return `
+    <tr>
+      <td style="padding:4px 8px;color:#64748b;font-size:10px;white-space:nowrap;">${r.date}</td>
+      <td style="padding:4px 8px;color:${color};font-size:10px;">${icon} ${r.outcome}</td>
+      <td style="padding:4px 8px;text-align:right;color:#94a3b8;font-size:10px;">${(r.inputTokens + r.outputTokens).toLocaleString()} tok</td>
+      <td style="padding:4px 8px;text-align:right;color:#94a3b8;font-size:10px;">${r.dataPointsFound} pts</td>
+    </tr>`
+  }).join("")
+
+  return `
+  <div style="background:#0f172a;border:1px solid #1e293b;border-radius:8px;padding:18px;margin-bottom:20px;">
+    <div style="color:#f1f5f9;font-size:13px;font-weight:700;margin-bottom:14px;">🤖 Agent Metrics Dashboard</div>
+
+    <!-- This run -->
+    <div style="background:#1e293b;border-radius:6px;padding:12px;margin-bottom:12px;">
+      <div style="color:#64748b;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">This Run — ${thisRun.date}</div>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;">
+        <div><div style="color:#94a3b8;font-size:10px;">Outcome</div><div style="color:#f1f5f9;font-size:13px;font-weight:600;">${outcomeIcon} ${outcomeLabel}</div></div>
+        <div><div style="color:#94a3b8;font-size:10px;">Tokens Used</div><div style="color:#60a5fa;font-size:13px;font-weight:600;">${thisTok.toLocaleString()}</div></div>
+        <div><div style="color:#94a3b8;font-size:10px;">Input / Output</div><div style="color:#94a3b8;font-size:12px;">${thisRun.inputTokens.toLocaleString()} / ${thisRun.outputTokens.toLocaleString()}</div></div>
+        <div><div style="color:#94a3b8;font-size:10px;">Data Points Found</div><div style="color:#f1f5f9;font-size:13px;font-weight:600;">${thisRun.dataPointsFound}</div></div>
+      </div>
+    </div>
+
+    <!-- Cumulative stats -->
+    <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-bottom:12px;">
+      <tr>
+        <td style="padding:8px;background:#1e293b;border-radius:6px;text-align:center;width:25%;">
+          <div style="color:#64748b;font-size:10px;text-transform:uppercase;">Total Runs</div>
+          <div style="color:#f1f5f9;font-size:20px;font-weight:700;">${metrics.totalRuns}</div>
+        </td>
+        <td style="width:4px;"></td>
+        <td style="padding:8px;background:#052e16;border-radius:6px;text-align:center;width:25%;">
+          <div style="color:#64748b;font-size:10px;text-transform:uppercase;">Autonomous</div>
+          <div style="color:#22c55e;font-size:20px;font-weight:700;">${autonomyRate}%</div>
+          <div style="color:#4ade80;font-size:10px;">${metrics.autonomousRuns} runs</div>
+        </td>
+        <td style="width:4px;"></td>
+        <td style="padding:8px;background:#1e293b;border-radius:6px;text-align:center;width:25%;">
+          <div style="color:#64748b;font-size:10px;text-transform:uppercase;">HITL Rate</div>
+          <div style="color:#f59e0b;font-size:20px;font-weight:700;">${hitlRate}%</div>
+          <div style="color:#fbbf24;font-size:10px;">${metrics.hitlRuns} runs</div>
+        </td>
+        <td style="width:4px;"></td>
+        <td style="padding:8px;background:#1e293b;border-radius:6px;text-align:center;width:25%;">
+          <div style="color:#64748b;font-size:10px;text-transform:uppercase;">Total Tokens</div>
+          <div style="color:#60a5fa;font-size:20px;font-weight:700;">${(totalTok / 1000).toFixed(1)}k</div>
+          <div style="color:#93c5fd;font-size:10px;">${metrics.totalInputTokens.toLocaleString()} in / ${metrics.totalOutputTokens.toLocaleString()} out</div>
+        </td>
+      </tr>
+    </table>
+
+    <!-- ROI -->
+    <div style="background:#1e293b;border-radius:6px;padding:10px 12px;margin-bottom:12px;">
+      <span style="color:#64748b;font-size:10px;text-transform:uppercase;font-weight:700;">Estimated Time Saved&nbsp;&nbsp;</span>
+      <span style="color:#a3e635;font-size:12px;font-weight:600;">${roiLabel}</span>
+      <span style="color:#475569;font-size:10px;">&nbsp;·&nbsp;check actual token costs at <a href="https://console.anthropic.com" style="color:#60a5fa;">console.anthropic.com</a></span>
+    </div>
+
+    ${sparkRows ? `
+    <!-- Recent run history -->
+    <div style="color:#475569;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Recent Runs</div>
+    <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#1e293b;border-radius:6px;overflow:hidden;">
+      <thead><tr style="background:#0f172a;">
+        <th style="padding:4px 8px;text-align:left;color:#334155;font-size:9px;text-transform:uppercase;">Date</th>
+        <th style="padding:4px 8px;text-align:left;color:#334155;font-size:9px;text-transform:uppercase;">Outcome</th>
+        <th style="padding:4px 8px;text-align:right;color:#334155;font-size:9px;text-transform:uppercase;">Tokens</th>
+        <th style="padding:4px 8px;text-align:right;color:#334155;font-size:9px;text-transform:uppercase;">Data Pts</th>
+      </tr></thead>
+      <tbody>${sparkRows}</tbody>
+    </table>` : ""}
+  </div>`
+}
+
+// ── Email bar chart (pure HTML tables — works in Gmail, Apple Mail, Outlook) ──
+function buildEmailBarChart(enriched) {
+  const latestByChannel = {}
+  for (const r of enriched) {
+    const cur = latestByChannel[r.channel]
+    if (!cur || r.period_sort > cur.period_sort) latestByChannel[r.channel] = r
+  }
+  const points = CHANNELS.map(({ key }) => latestByChannel[key]).filter(Boolean)
+  if (points.length === 0) return ""
+  const maxCpm = Math.max(...points.map(r => r.avg_cpm))
+
+  const tableRows = points.map(r => {
+    const pct      = Math.max(1, Math.round((r.avg_cpm / maxCpm) * 100))
+    const empty    = 100 - pct
+    const momColor = r.mom === null ? "#475569" : r.mom > 0.5 ? "#22c55e" : r.mom < -0.5 ? "#ef4444" : "#f59e0b"
+    const momText  = r.mom === null ? "—" : `${r.mom >= 0 ? "+" : ""}${r.mom.toFixed(1)}%`
+    const arrow    = r.mom === null ? "" : r.mom > 0.5 ? "↑ " : r.mom < -0.5 ? "↓ " : "→ "
+    const chLabel  = CHANNEL_LABELS[r.channel] ?? r.channel
+    const period   = `${(MONTH_NAMES[r.month] ?? "").slice(0, 3)} ${r.year}`
+    return `
+    <tr>
+      <td valign="middle" style="padding:5px 8px 5px 0;color:#94a3b8;font-size:11px;white-space:nowrap;width:145px;">
+        ${chLabel}<br><span style="color:#475569;font-size:10px;">${period}</span>
+      </td>
+      <td valign="middle" style="padding:5px 0;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+          <tr>
+            <td width="${pct}%" style="background:#3b82f6;height:20px;font-size:1px;">&nbsp;</td>
+            <td width="${empty}%" style="background:#0f172a;height:20px;font-size:1px;">&nbsp;</td>
+          </tr>
+        </table>
+      </td>
+      <td valign="middle" style="padding:5px 0 5px 8px;color:#f1f5f9;font-size:13px;font-weight:700;white-space:nowrap;width:52px;">$${r.avg_cpm.toFixed(2)}</td>
+      <td valign="middle" style="padding:5px 0;color:${momColor};font-size:11px;font-weight:600;white-space:nowrap;width:64px;">${arrow}${momText}&nbsp;MoM</td>
+    </tr>`
+  }).join("")
+
+  return `
+  <div style="background:#1e293b;border-radius:8px;padding:18px;margin-bottom:20px;">
+    <div style="color:#f1f5f9;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;">CPM by Channel — Latest Period</div>
+    <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">${tableRows}</table>
+    <div style="color:#475569;font-size:10px;margin-top:8px;">Bar length ∝ CPM&nbsp;&nbsp;·&nbsp;&nbsp;<span style="color:#22c55e;">Green ↑</span> = higher MoM&nbsp;&nbsp;<span style="color:#ef4444;">Red ↓</span> = lower&nbsp;&nbsp;<span style="color:#f59e0b;">Amber →</span> = flat</div>
+  </div>`
+}
+
+// ── Compact 6-month cross-channel trend table (email-safe) ───────────────────
+function buildEmailTrendTable(enriched) {
+  const periods = [...new Set(enriched.map(r => r.period_sort))]
+    .sort((a, b) => b - a)
+    .slice(0, 6)
+  if (periods.length === 0) return ""
+
+  const byKey = {}
+  for (const r of enriched) byKey[`${r.channel}|${r.period_sort}`] = r
+
+  const headerCells = CHANNELS.map(c => {
+    const parts = c.label.split(" ")
+    return `<th style="padding:6px 5px;text-align:right;color:#475569;font-size:10px;font-weight:700;text-transform:uppercase;white-space:nowrap;">${parts[0]}<br>${parts.slice(1).join(" ") || "&nbsp;"}</th>`
+  }).join("")
+
+  const tableRows = periods.map(ps => {
+    const year         = Math.floor(ps / 100)
+    const month        = ps % 100
+    const periodLabel  = `${(MONTH_NAMES[month] ?? "").slice(0, 3)} ${year}`
+    const cells = CHANNELS.map(c => {
+      const r = byKey[`${c.key}|${ps}`]
+      if (!r) return `<td style="padding:6px 5px;text-align:right;color:#334155;font-size:11px;border-bottom:1px solid #0f172a;">—</td>`
+      const color = r.mom === null ? "#f1f5f9" : r.mom > 0.5 ? "#22c55e" : r.mom < -0.5 ? "#ef4444" : "#f59e0b"
+      return `<td style="padding:6px 5px;text-align:right;color:${color};font-weight:600;font-size:11px;border-bottom:1px solid #0f172a;">$${r.avg_cpm.toFixed(2)}</td>`
+    }).join("")
+    return `<tr><td style="padding:6px 5px;color:#94a3b8;font-size:11px;white-space:nowrap;border-bottom:1px solid #0f172a;">${periodLabel}</td>${cells}</tr>`
+  }).join("")
+
+  return `
+  <div style="margin-bottom:24px;">
+    <div style="color:#f1f5f9;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">6-Month CPM Trend</div>
+    <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;background:#1e293b;border-radius:6px;overflow:hidden;">
+      <thead>
+        <tr style="background:#0f172a;">
+          <th style="padding:6px 5px;text-align:left;color:#475569;font-size:10px;font-weight:700;text-transform:uppercase;">Period</th>
+          ${headerCells}
+        </tr>
+      </thead>
+      <tbody>${tableRows}</tbody>
+    </table>
+    <div style="color:#475569;font-size:10px;margin-top:6px;"><span style="color:#22c55e;">Green</span> = CPM up vs prior month &nbsp;·&nbsp; <span style="color:#ef4444;">Red</span> = down &nbsp;·&nbsp; <span style="color:#f59e0b;">Amber</span> = flat (±0.5%)</div>
+  </div>`
+}
+
 // ── Email report (static HTML — no JavaScript, all email clients) ─────────────
-function buildHtmlReport(rows, webFindings, aiInsights, verifiedNewData, runDate, dashboardPath) {
+function buildHtmlReport(rows, webFindings, aiInsights, verifiedNewData, runDate, dashboardPath, metricsSection = "") {
   const enriched = computeChanges(rows)
 
   // Latest per channel (for summary cards)
@@ -519,39 +745,9 @@ function buildHtmlReport(rows, webFindings, aiInsights, verifiedNewData, runDate
     </div>`
   }).join("")
 
-  // Full MoM table — one section per channel, all years shown
-  const byChannel = {}
-  for (const r of enriched) {
-    if (!byChannel[r.channel]) byChannel[r.channel] = []
-    byChannel[r.channel].push(r)
-  }
-
-  const channelSections = CHANNELS.map(({ key, label }) => {
-    const chRows = (byChannel[key] ?? []).sort((a, b) => b.period_sort - a.period_sort)
-    if (chRows.length === 0) return ""
-    const tableBody = chRows.map(r => `
-      <tr>
-        <td style="padding:6px 10px;border-bottom:1px solid #0f172a;color:#94a3b8;">${MONTH_NAMES[r.month]} ${r.year}</td>
-        <td style="padding:6px 10px;border-bottom:1px solid #0f172a;text-align:right;font-weight:600;color:#60a5fa;">$${r.avg_cpm.toFixed(2)}</td>
-        <td style="padding:6px 10px;border-bottom:1px solid #0f172a;text-align:right;">${fmtPct(r.mom)}</td>
-        <td style="padding:6px 10px;border-bottom:1px solid #0f172a;text-align:right;">${fmtPct(r.yoy)}</td>
-      </tr>`).join("")
-    return `
-    <div style="margin-bottom:24px;">
-      <div style="color:#3b82f6;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;padding:8px 0 6px;">${label}</div>
-      <table style="width:100%;border-collapse:collapse;background:#1e293b;border-radius:6px;overflow:hidden;font-size:12px;">
-        <thead>
-          <tr style="background:#0f172a;">
-            <th style="padding:7px 10px;text-align:left;color:#475569;font-weight:600;font-size:11px;text-transform:uppercase;">Period</th>
-            <th style="padding:7px 10px;text-align:right;color:#475569;font-weight:600;font-size:11px;text-transform:uppercase;">CPM</th>
-            <th style="padding:7px 10px;text-align:right;color:#475569;font-weight:600;font-size:11px;text-transform:uppercase;">MoM Δ</th>
-            <th style="padding:7px 10px;text-align:right;color:#475569;font-weight:600;font-size:11px;text-transform:uppercase;">YoY Δ</th>
-          </tr>
-        </thead>
-        <tbody style="color:#cbd5e1;">${tableBody}</tbody>
-      </table>
-    </div>`
-  }).join("")
+  // Charts and compact trend table (replace long per-channel tables)
+  const emailBarChart   = buildEmailBarChart(enriched)
+  const emailTrendTable = buildEmailTrendTable(enriched)
 
   // New verified data section
   const newDataSection = verifiedNewData.length > 0 ? `
@@ -564,16 +760,22 @@ function buildHtmlReport(rows, webFindings, aiInsights, verifiedNewData, runDate
     </div>`).join("")}
   </div>` : ""
 
-  // AI insights section
+  // AI insights section (with source links)
   const aiSection = aiInsights ? `
   <div style="background:#0f172a;border-radius:8px;padding:18px;margin-bottom:20px;">
-    <div style="color:#f1f5f9;font-size:14px;font-weight:700;margin-bottom:10px;">AI Analysis</div>
-    <p style="color:#cbd5e1;font-size:13px;line-height:1.6;margin:0 0 14px;">${aiInsights.summary}</p>
-    ${(aiInsights.insights ?? []).map(i => `
-    <div style="border-left:3px solid #3b82f6;padding-left:10px;margin-bottom:10px;">
+    <div style="color:#f1f5f9;font-size:14px;font-weight:700;margin-bottom:10px;">📊 AI Analysis</div>
+    <p style="color:#cbd5e1;font-size:13px;line-height:1.6;margin:0 0 14px;">${aiInsights.summary ?? ""}</p>
+    ${(aiInsights.insights ?? []).map(i => {
+      const srcLinks = (i.sources ?? [])
+        .map(s => `<a href="${s.url}" style="color:#60a5fa;font-size:10px;text-decoration:none;">${s.title ?? s.url}</a>`)
+        .join(" &nbsp;·&nbsp; ")
+      return `
+    <div style="border-left:3px solid #3b82f6;padding-left:10px;margin-bottom:12px;">
       <div style="color:#93c5fd;font-weight:600;font-size:12px;">${i.title}</div>
-      <div style="color:#94a3b8;font-size:12px;margin-top:3px;">${i.body}</div>
-    </div>`).join("")}
+      <div style="color:#94a3b8;font-size:12px;margin-top:3px;line-height:1.5;">${i.body}</div>
+      ${srcLinks ? `<div style="margin-top:5px;">🔗 ${srcLinks}</div>` : ""}
+    </div>`
+    }).join("")}
   </div>` : ""
 
   const dashboardLink = dashboardPath
@@ -606,9 +808,14 @@ function buildHtmlReport(rows, webFindings, aiInsights, verifiedNewData, runDate
 
   ${aiSection}
 
-  <!-- Full MoM History -->
-  <div style="color:#f1f5f9;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin:24px 0 12px;">Full Month-over-Month History (2023–2026)</div>
-  ${channelSections}
+  <!-- CPM by Channel Bar Chart -->
+  ${emailBarChart}
+
+  <!-- 6-Month Trend Table -->
+  ${emailTrendTable}
+
+  <!-- Agent Metrics -->
+  ${metricsSection}
 
   <!-- Footer -->
   <div style="border-top:1px solid #1e293b;margin-top:16px;padding-top:14px;color:#475569;font-size:11px;text-align:center;">
@@ -621,7 +828,7 @@ function buildHtmlReport(rows, webFindings, aiInsights, verifiedNewData, runDate
 }
 
 // ── Interactive dashboard (saved to disk) ─────────────────────────────────────
-function buildInteractiveDashboard(rows, runDate) {
+function buildInteractiveDashboard(rows, runDate, aiInsights = null) {
   const enriched = computeChanges(rows)
   const dataJson = JSON.stringify(enriched.map(r => ({
     year: r.year, month: r.month, channel: r.channel,
@@ -641,6 +848,23 @@ function buildInteractiveDashboard(rows, runDate) {
   const monthCheckboxes = Object.entries(MONTH_NAMES).map(([m, name]) =>
     `<label class="cb-label"><input type="checkbox" class="mo-cb" value="${m}" checked><span>${name.slice(0,3)}</span></label>`
   ).join("")
+
+  const insightsHtml = aiInsights ? `
+  <div class="insights-panel">
+    <div class="insights-title">📊 AI Analysis</div>
+    <div class="insights-summary">${aiInsights.summary ?? ""}</div>
+    ${(aiInsights.insights ?? []).map(i => {
+      const srcLinks = (i.sources ?? [])
+        .map(s => `<a href="${s.url}" target="_blank" rel="noopener" class="src-link">${s.title ?? s.url}</a>`)
+        .join(" · ")
+      return `
+    <div class="insight-item">
+      <div class="insight-title">${i.title}</div>
+      <div class="insight-body">${i.body}</div>
+      ${srcLinks ? `<div class="insight-sources">🔗 ${srcLinks}</div>` : ""}
+    </div>`
+    }).join("")}
+  </div>` : ""
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -684,12 +908,27 @@ function buildInteractiveDashboard(rows, runDate) {
   .tag{display:inline-block;background:#1e3a5f;color:#60a5fa;border-radius:4px;padding:2px 6px;font-size:11px}
   #count{font-size:12px;color:#64748b;margin-bottom:8px}
   .sort-indicator{color:#3b82f6;margin-left:4px}
+  /* Chart section */
+  .chart-section{background:#1e293b;border-radius:10px;padding:20px;margin-bottom:20px}
+  .chart-title{font-size:13px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:1px;margin-bottom:14px}
+  .chart-wrap{position:relative;height:280px}
+  /* Insights panel */
+  .insights-panel{background:#0f172a;border-radius:10px;padding:20px;margin-bottom:20px}
+  .insights-title{font-size:14px;font-weight:700;color:#f1f5f9;margin-bottom:10px}
+  .insights-summary{color:#cbd5e1;font-size:13px;line-height:1.6;margin-bottom:14px}
+  .insight-item{border-left:3px solid #3b82f6;padding-left:10px;margin-bottom:12px}
+  .insight-title{color:#93c5fd;font-weight:600;font-size:13px}
+  .insight-body{color:#94a3b8;font-size:12px;margin-top:3px;line-height:1.5}
+  .insight-sources{margin-top:5px;font-size:11px}
+  .src-link{color:#60a5fa;text-decoration:none}
+  .src-link:hover{text-decoration:underline}
   @media(max-width:640px){
     .layout{flex-direction:column}
     .sidebar{width:100%;border-right:none;border-bottom:1px solid #334155}
     .stats{flex-direction:column}
   }
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 </head>
 <body>
 <div class="header">
@@ -715,6 +954,11 @@ function buildInteractiveDashboard(rows, runDate) {
     <div style="margin-top:16px;font-size:11px;color:#475569">Click column headers to sort</div>
   </div>
   <div class="main">
+    ${insightsHtml}
+    <div class="chart-section">
+      <div class="chart-title">CPM Trends Over Time</div>
+      <div class="chart-wrap"><canvas id="cpmChart"></canvas></div>
+    </div>
     <div class="stats" id="stats"></div>
     <div id="count"></div>
     <table>
@@ -756,6 +1000,9 @@ function render() {
   let data = ALL.filter(r =>
     yrs.includes(r.year) && mos.includes(r.month) && chs.includes(r.channel)
   );
+
+  // Update chart with filtered data (function is declared below; hoisting makes this safe)
+  if (typeof updateChart === 'function') updateChart(data);
 
   // Sort
   data.sort((a, b) => {
@@ -825,47 +1072,144 @@ function clearAll() {
 }
 
 document.querySelectorAll('.yr-cb,.mo-cb,.ch-cb').forEach(e => e.addEventListener('change', render));
+
+// ── Chart.js line chart ───────────────────────────────────────────────────────
+const CHART_COLORS = {
+  paid_social:           '#3b82f6',
+  paid_search:           '#22c55e',
+  programmatic_display:  '#f59e0b',
+  video_ctv:             '#a855f7',
+  streaming_audio:       '#ec4899',
+};
+
+let cpmChart = null;
+
+function buildChartData(data) {
+  // All unique periods, sorted chronologically
+  const allPeriods = [...new Set(data.map(r => r.year * 100 + r.month))]
+    .sort((a, b) => a - b);
+  const labels = allPeriods.map(ps => {
+    const mo = ps % 100, yr = Math.floor(ps / 100);
+    const months = ['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return \`\${months[mo]} \${yr}\`;
+  });
+
+  // One dataset per channel (in filter)
+  const activeChs = [...document.querySelectorAll('.ch-cb:checked')].map(e => e.value);
+  const datasets = activeChs.map(ch => {
+    const byPeriod = {};
+    for (const r of data) {
+      if (r.channel === ch) byPeriod[r.year * 100 + r.month] = r.cpm;
+    }
+    const chLabel = data.find(r => r.channel === ch)?.label ?? ch;
+    return {
+      label: chLabel,
+      data: allPeriods.map(ps => byPeriod[ps] ?? null),
+      borderColor: CHART_COLORS[ch] ?? '#94a3b8',
+      backgroundColor: (CHART_COLORS[ch] ?? '#94a3b8') + '22',
+      tension: 0.3,
+      spanGaps: true,
+      fill: false,
+      pointRadius: 3,
+      pointHoverRadius: 6,
+    };
+  });
+  return { labels, datasets };
+}
+
+function updateChart(data) {
+  const { labels, datasets } = buildChartData(data);
+  const ctx = document.getElementById('cpmChart').getContext('2d');
+  if (cpmChart) {
+    cpmChart.data.labels = labels;
+    cpmChart.data.datasets = datasets;
+    cpmChart.update();
+    return;
+  }
+  cpmChart = new Chart(ctx, {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          labels: { color: '#94a3b8', font: { size: 11 }, boxWidth: 12, padding: 14 }
+        },
+        tooltip: {
+          backgroundColor: '#1e293b',
+          titleColor: '#f1f5f9',
+          bodyColor: '#cbd5e1',
+          borderColor: '#334155',
+          borderWidth: 1,
+          callbacks: {
+            label: ctx => \` \${ctx.dataset.label}: \$\${ctx.parsed.y?.toFixed(2) ?? '—'} CPM\`
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { color: '#64748b', font: { size: 10 }, maxRotation: 45 },
+          grid:  { color: '#1e293b' }
+        },
+        y: {
+          ticks: {
+            color: '#64748b',
+            font: { size: 10 },
+            callback: v => \`\$\${v.toFixed(0)}\`
+          },
+          grid: { color: '#1e293b' },
+          title: { display: true, text: 'CPM (USD)', color: '#475569', font: { size: 11 } }
+        }
+      }
+    }
+  });
+}
+
+// Initial chart render (also called by render() below via the getFilters + filter step)
 render();
 </script>
 </body>
 </html>`
 }
 
-// ── SendGrid email ─────────────────────────────────────────────────────────────
+// ── Resend email (free REST API — no SMTP, no OAuth, works with passkeys) ────────
 async function sendEmail(subject, html, attachments = []) {
-  if (!CONFIG.sendgridApiKey) { console.warn("SENDGRID_API_KEY not set — skipping email"); return }
+  if (!CONFIG.resendApiKey) {
+    console.warn("RESEND_API_KEY not set — skipping email")
+    console.warn("Get a free key at: resend.com → sign up → API Keys → Create API Key")
+    return
+  }
 
-  const personalization = { to: [{ email: CONFIG.emailTo }] }
-  if (CONFIG.emailCc.length > 0) personalization.cc = CONFIG.emailCc.map(e => ({ email: e }))
-
-  // FROM must be a SendGrid-verified sender. Using your own email is fine
-  // as long as it's verified at sendgrid.com → Settings → Sender Authentication.
-  const fromEmail = process.env.EMAIL_FROM || CONFIG.emailTo
   const body = {
-    personalizations: [personalization],
-    from:    { email: fromEmail, name: "CPM Report Agent" },
-    reply_to: { email: CONFIG.emailTo },
+    from:    "CPM Report Agent <onboarding@resend.dev>",
+    to:      [CONFIG.emailTo],
     subject,
-    content: [{ type: "text/html", value: html }],
-    ...(attachments.length > 0 ? { attachments } : {}),
+    html,
+  }
+  if (CONFIG.emailCc.length > 0) body.cc = CONFIG.emailCc
+
+  if (attachments.length > 0) {
+    body.attachments = attachments.map(a => ({
+      filename: a.filename,
+      content:  a.content,   // base64 string — Resend accepts it directly
+    }))
   }
 
   const res = await post(
-    "https://api.sendgrid.com/v3/mail/send",
-    { "Authorization": `Bearer ${CONFIG.sendgridApiKey}`, "Content-Type": "application/json" },
+    "https://api.resend.com/emails",
+    { "Authorization": `Bearer ${CONFIG.resendApiKey}`, "Content-Type": "application/json" },
     body
   )
 
-  console.log(`      SendGrid status: ${res.status}`)
-  if (res.body) console.log(`      SendGrid body: ${res.body.slice(0, 200) || "(empty — normal for 202)"}`)
-
   if (res.status >= 200 && res.status < 300) {
-    console.log(`✅ Email queued for delivery to ${CONFIG.emailTo}`)
-    console.log("   → Check spam/junk if not in inbox within 2 minutes")
-    console.log("   → If missing, verify sender at sendgrid.com → Settings → Sender Authentication")
+    const data = JSON.parse(res.body)
+    console.log(`✅ Email sent to ${CONFIG.emailTo} (Resend ID: ${data.id})`)
   } else {
-    console.error("SendGrid error:", res.status, res.body.slice(0, 200))
-    throw new Error(`SendGrid ${res.status}: ${res.body.slice(0, 100)}`)
+    console.warn(`❌ Resend error ${res.status}: ${res.body.slice(0, 200)}`)
+    if (res.status === 401) console.warn("   → API key invalid — check RESEND_API_KEY in .env")
+    if (res.status === 422) console.warn("   → Unprocessable — verify EMAIL_TO address is correct")
   }
 }
 
@@ -880,7 +1224,7 @@ async function main() {
   console.log("=".repeat(60))
 
   // Validate required config
-  const required = { braveApiKey: "BRAVE_API_KEY", sendgridApiKey: "SENDGRID_API_KEY" }
+  const required = { braveApiKey: "BRAVE_API_KEY", resendApiKey: "RESEND_API_KEY" }
   const missing = Object.entries(required).filter(([k]) => !CONFIG[k]).map(([, v]) => v)
   if (missing.length > 0) {
     console.error("Missing required env vars:", missing.join(", "))
@@ -952,11 +1296,18 @@ async function main() {
 
   // ── Step 4: AI synthesis (optional) ──────────────────────────────────────
   let aiInsights = null
+  let synthesisInputTokens  = 0
+  let synthesisOutputTokens = 0
   if (CONFIG.anthropicKey) {
     console.log("\n[4b] Running AI synthesis via Claude…")
     aiInsights = await synthesizeInsights(historicalRows, webFindings)
-    if (aiInsights) console.log("     AI insights generated")
-    else console.log("     AI synthesis skipped (no key or failed)")
+    if (aiInsights) {
+      synthesisInputTokens  = aiInsights._inputTokens  ?? 0
+      synthesisOutputTokens = aiInsights._outputTokens ?? 0
+      console.log(`     AI insights generated (${synthesisInputTokens} in / ${synthesisOutputTokens} out tokens)`)
+    } else {
+      console.log("     AI synthesis skipped (no key or failed)")
+    }
   }
 
   // ── Step 5: Build report and send email ───────────────────────────────────
@@ -965,19 +1316,50 @@ async function main() {
     channel: r.channel, year: r.year, month: r.month, avg_cpm: r.cpm, period_sort: r.year * 100 + r.month
   }))]
 
-  // Save interactive dashboard to disk
+  // ── Update agent metrics ──────────────────────────────────────────────────
+  const runOutcome = verifiedNewData.length > 0 ? "autonomous"
+                   : isFirstOfMonth              ? "hitl"
+                   : "autonomous"  // non-1st runs are always autonomous (reporting only)
+  const prevMetrics = loadMetrics()
+  const thisRunRecord = {
+    date:           now.toISOString().slice(0, 10),
+    outcome:        runOutcome,
+    inputTokens:    synthesisInputTokens,
+    outputTokens:   synthesisOutputTokens,
+    dataPointsFound: verifiedNewData.length,
+  }
+  const updatedMetrics = {
+    totalRuns:          prevMetrics.totalRuns + 1,
+    autonomousRuns:     prevMetrics.autonomousRuns + (runOutcome === "autonomous" ? 1 : 0),
+    hitlRuns:           prevMetrics.hitlRuns       + (runOutcome === "hitl"       ? 1 : 0),
+    errorRuns:          prevMetrics.errorRuns,
+    totalInputTokens:   prevMetrics.totalInputTokens  + synthesisInputTokens,
+    totalOutputTokens:  prevMetrics.totalOutputTokens + synthesisOutputTokens,
+    runHistory:         [...(prevMetrics.runHistory ?? []).slice(-29), thisRunRecord],
+  }
   const logDir = path.resolve(__dirname, "../../logs")
   const dashboardPath = path.join(logDir, "cpm-dashboard.html")
   try {
     const { mkdirSync } = await import("fs")
     mkdirSync(logDir, { recursive: true })
-    writeFileSync(dashboardPath, buildInteractiveDashboard(allRows, runDate), "utf-8")
+    await saveMetricsAsync(updatedMetrics)
+    console.log(`      Metrics saved: ${METRICS_PATH}`)
+  } catch (e) {
+    console.warn("      Could not save metrics:", e.message)
+  }
+  const metricsSection = buildEmailMetricsSection(updatedMetrics, thisRunRecord)
+
+  // Save interactive dashboard to disk
+  try {
+    const { mkdirSync } = await import("fs")
+    mkdirSync(logDir, { recursive: true })
+    writeFileSync(dashboardPath, buildInteractiveDashboard(allRows, runDate, aiInsights), "utf-8")
     console.log(`      Dashboard saved: ${dashboardPath}`)
   } catch (e) {
     console.warn("      Could not save dashboard:", e.message)
   }
 
-  const html    = buildHtmlReport(allRows, webFindings, aiInsights, verifiedNewData, runDate, dashboardPath)
+  const html    = buildHtmlReport(allRows, webFindings, aiInsights, verifiedNewData, runDate, dashboardPath, metricsSection)
   const subject = `📊 CPM Month-over-Month Report — ${runDate}`
 
   // Attach the interactive dashboard HTML
