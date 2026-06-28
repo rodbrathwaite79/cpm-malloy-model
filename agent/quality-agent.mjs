@@ -227,10 +227,11 @@ async function checkSendGrid() {
     check("RESEND_API_KEY", "PASS", `Set (starts re_… ${key.length} chars)`)
   }
 
-  // Verify key is valid by hitting the Resend domains endpoint
+  // Verify key is valid by hitting the Resend emails endpoint
+  // (/domains requires a custom domain — not available on free tier; /emails works for all accounts)
   try {
     const res = await get(
-      "https://api.resend.com/domains",
+      "https://api.resend.com/emails",
       { "Authorization": `Bearer ${key}`, "Content-Type": "application/json" }
     )
     if (res.status === 200) {
@@ -436,7 +437,7 @@ async function checkScriptIntegrity() {
     { key: "Email metrics section", pass: src.includes("buildEmailMetricsSection"),                 fix: "Email report missing metrics block — pull latest daily-report.mjs from repo" },
     { key: "Metrics persistence",   pass: src.includes("agent-metrics.json") || src.includes("METRICS_PATH"), fix: "Metrics persistence missing — agent-metrics.json writes not found" },
     { key: "Token tracking",        pass: src.includes("_inputTokens"),                             fix: "Real token tracking missing from synthesizeInsights() — update daily-report.mjs" },
-    { key: "AI source links",       pass: src.includes("sources") && src.includes("src.url"),       fix: "AI insights missing source URL support — update synthesizeInsights() and buildHtmlReport()" },
+    { key: "AI source links",       pass: src.includes("sources") && src.includes("s.url"),         fix: "AI insights missing source URL support — update synthesizeInsights() and buildHtmlReport()" },
   ]
 
   for (const c of checks) {
