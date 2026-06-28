@@ -99,7 +99,6 @@ async function run(input: Input, task: Task<Tools, AgentState>): Promise<Output>
     question?: string
     outcome?: "autonomous" | "hitl" | "error"
     dataPoints?: number
-    reset?: boolean
   }
   try {
     data = JSON.parse(extractJson(input.text))
@@ -107,22 +106,11 @@ async function run(input: Input, task: Task<Tools, AgentState>): Promise<Output>
     data = { question: input.text }
   }
 
-  // ── Reset mode: wipe saved state and exit early ─────────────────────────────
-  if (data.reset === true) {
-    await task.save(EMPTY_STATE)
-    const msg = "✅ Agent metrics state has been reset to zero. All cumulative run history cleared."
-    await task.tools.ui_notify(textPromptNotifyEvent({ type: "text", text: msg }))
-    return { type: "text", text: msg }
-  }
-
   const rows        = (data.rows        ?? []) as Array<{ channel: string; year: number; month: number; avg_cpm: number }>
   const webFindings = (data.webFindings ?? []) as Array<{ title: string; excerpt: string; url: string }>
   const question    = data.question    ?? "Provide an executive summary of CPM trends and 3-4 key insights."
   const outcome     = data.outcome     ?? "autonomous"
   const dataPoints  = data.dataPoints  ?? 0
-
-  // Detect test / manual invocations — no real data means this isn't a production run
-  const isTestRun = rows.length === 0 && webFindings.length === 0 && dataPoints === 0
 
   await task.tools.ui_notify(progressLogNotifyEvent("Restoring run history…"))
 
@@ -198,95 +186,73 @@ Rules:
 
   const result = await task.llm.generateText({ prompt })
 
-  // ── 6. Update and save metrics (skipped for test runs) ─────────────────────
-  let displayState: AgentState
-
-  if (isTestRun) {
-    // Don't persist — read-only view of existing state
-    displayState = prevState
-  } else {
-    const thisRun: RunRecord = {
-      date:             today,
-      sessionId:        task.sessionId,
-      outcome,
-      inputTokens:      todayInputTokens,
-      outputTokens:     todayOutputTokens,
-      dataPointsFound:  dataPoints,
-      estimatedCostUsd: todayCost,
-    }
-
-    displayState = {
-      totalRuns:             prevState.totalRuns + 1,
-      autonomousRuns:        prevState.autonomousRuns + (outcome === "autonomous" ? 1 : 0),
-      hitlRuns:              prevState.hitlRuns      + (outcome === "hitl"       ? 1 : 0),
-      totalInputTokens:      prevState.totalInputTokens  + todayInputTokens,
-      totalOutputTokens:     prevState.totalOutputTokens + todayOutputTokens,
-      totalEstimatedCostUsd: prevState.totalEstimatedCostUsd + todayCost,
-      runHistory:            [...prevState.runHistory.slice(-29), thisRun],
-    }
-
-    await task.save(displayState)
+  // ── 6. Update and save metrics ──────────────────────────────────────────────
+  const thisRun: RunRecord = {
+    date:             today,
+    sessionId:        task.sessionId,
+    outcome,
+    inputTokens:      todayInputTokens,
+    outputTokens:     todayOutputTokens,
+    dataPointsFound:  dataPoints,
+    estimatedCostUsd: todayCost,
   }
 
+  const newState: AgentState = {
+    totalRuns:             prevState.totalRuns + 1,
+    autonomousRuns:        prevState.autonomousRuns + (outcome === "autonomous" ? 1 : 0),
+    hitlRuns:              prevState.hitlRuns      + (outcome === "hitl"       ? 1 : 0),
+    totalInputTokens:      prevState.totalInputTokens  + todayInputTokens,
+    totalOutputTokens:     prevState.totalOutputTokens + todayOutputTokens,
+    totalEstimatedCostUsd: prevState.totalEstimatedCostUsd + todayCost,
+    runHistory:            [...prevState.runHistory.slice(-29), thisRun],  // keep last 30
+  }
+
+  await task.save(newState)
+
   // ── 7. Compute derived metrics ──────────────────────────────────────────────
-  const hitlRate     = displayState.totalRuns > 0
-    ? (displayState.hitlRuns / displayState.totalRuns * 100).toFixed(1)
+  const hitlRate     = newState.totalRuns > 0
+    ? (newState.hitlRuns / newState.totalRuns * 100).toFixed(1)
     : "0.0"
 
-  const autonomyRate = displayState.totalRuns > 0
-    ? (displayState.autonomousRuns / displayState.totalRuns * 100).toFixed(1)
+  const autonomyRate = newState.totalRuns > 0
+    ? (newState.autonomousRuns / newState.totalRuns * 100).toFixed(1)
     : "0.0"
 
-  // ROI estimate — each autonomous run saves ~15 min of analyst time:
-  //   • 5 min pulling CPM data from sources (eMarketer, WordStream, IAB)
-  //   • 5 min writing the executive summary
-  //   • 5 min formatting and sending the report
-  // Rate assumption: $100/hr ($1.67/min) × 15 min = $25.00/run (est.)
-  // Adjust ANALYST_RATE_USD_PER_HOUR or ANALYST_MIN_PER_RUN to match your actual rate.
-  const ANALYST_RATE_USD_PER_HOUR = 100   // ← your hourly analyst rate
-  const ANALYST_MIN_PER_RUN       = 15    // ← estimated minutes saved per autonomous run
-  const savedPerRun       = (ANALYST_RATE_USD_PER_HOUR / 60) * ANALYST_MIN_PER_RUN
-  const humanTimeSavedUsd = displayState.autonomousRuns * savedPerRun
-  const roiScore = displayState.totalEstimatedCostUsd > 0
-    ? (humanTimeSavedUsd / displayState.totalEstimatedCostUsd).toFixed(1)
+  // ROI score: autonomous runs save human time (est. 15 min each @ $100/hr = $25)
+  const humanTimeSavedUsd = newState.autonomousRuns * 25
+  const roiScore = newState.totalEstimatedCostUsd > 0
+    ? (humanTimeSavedUsd / newState.totalEstimatedCostUsd).toFixed(1)
     : "∞"
 
-  const avgCostPerRun = displayState.totalRuns > 0
-    ? (displayState.totalEstimatedCostUsd / displayState.totalRuns * 100).toFixed(3)
+  const avgCostPerRun = newState.totalRuns > 0
+    ? (newState.totalEstimatedCostUsd / newState.totalRuns * 100).toFixed(3)
     : "0.000"
 
   // ── 8. Build full output ────────────────────────────────────────────────────
-  const testRunNotice = isTestRun ? `
-⚠️  TEST RUN — no input data provided. Metrics not recorded.
-    Pass { rows, webFindings, dataPoints } to log a real run.
-` : ""
-
   const metricsBlock = `
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📊 AGENT METRICS DASHBOARD${isTestRun ? " (read-only — test run)" : ""}
+📊 AGENT METRICS DASHBOARD
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-${testRunNotice}
+
 COST PER TASK (Today — from Guild LLM API)
   Input tokens:   ${todayInputTokens.toLocaleString()} tokens
   Output tokens:  ${todayOutputTokens.toLocaleString()} tokens
   Estimated cost: $${(todayCost).toFixed(4)}
-  Avg cost/run:   $${avgCostPerRun} (all-time, production runs only)
+  Avg cost/run:   $${avgCostPerRun} (all-time)
 
-HITL UTILIZATION RATE (${displayState.totalRuns} production runs)
-  Autonomous:  ${displayState.autonomousRuns} runs (${autonomyRate}%) — no human needed
-  HITL:        ${displayState.hitlRuns} runs (${hitlRate}%) — emailed human for help
-  Errors:      ${displayState.totalRuns - displayState.autonomousRuns - displayState.hitlRuns} runs
+HITL UTILIZATION RATE (${newState.totalRuns} total runs)
+  Autonomous:  ${newState.autonomousRuns} runs (${autonomyRate}%) — no human needed
+  HITL:        ${newState.hitlRuns} runs (${hitlRate}%) — emailed human for help
+  Errors:      ${newState.totalRuns - newState.autonomousRuns - newState.hitlRuns} runs
 
-PER-AGENT ROI SCORE (estimated)
-  LLM cost to date:     $${displayState.totalEstimatedCostUsd.toFixed(4)}
-  Human time saved:     $${humanTimeSavedUsd.toFixed(2)} (${displayState.autonomousRuns} runs × ${ANALYST_MIN_PER_RUN} min × $${(ANALYST_RATE_USD_PER_HOUR/60).toFixed(2)}/min)
-  Time breakdown:       5 min data pull + 5 min summary + 5 min format/send
-  Rate assumption:      $${ANALYST_RATE_USD_PER_HOUR}/hr — update ANALYST_RATE_USD_PER_HOUR in agent.ts to adjust
+PER-AGENT ROI SCORE
+  LLM cost to date:     $${newState.totalEstimatedCostUsd.toFixed(4)}
+  Human time saved:     $${humanTimeSavedUsd.toFixed(2)} (${newState.autonomousRuns} × $25/run)
   ROI score:            ${roiScore}x  ${Number(roiScore) > 10 ? "🟢 Excellent" : Number(roiScore) > 3 ? "🟡 Good" : "🔴 Needs improvement"}
 
 THIS RUN
   Session ID:     ${task.sessionId}
-  Type:           ${isTestRun ? "🧪 Test (not recorded)" : outcome === "autonomous" ? "✅ Autonomous" : outcome === "hitl" ? "⚠️ HITL triggered" : "❌ Error"}
+  Outcome:        ${outcome === "autonomous" ? "✅ Autonomous" : outcome === "hitl" ? "⚠️ HITL triggered" : "❌ Error"}
   Data points:    ${dataPoints} new verified CPM data points
   Date:           ${today}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`

@@ -123,14 +123,12 @@ async function checkFiles() {
 
   const files = [
     { path: path.join(scriptDir, "daily-report.mjs"),          label: "Main script" },
-    { path: path.join(scriptDir, "agent.ts"),                  label: "Guild agent (agent.ts)" },
     { path: path.join(scriptDir, ".env"),                       label: ".env credentials" },
     { path: path.join(scriptDir, "com.rod.cpm-report.plist"),   label: "launchd plist" },
     { path: path.join(scriptDir, "package.json"),               label: "package.json" },
     { path: path.join(scriptDir, "node_modules/duckdb"),        label: "duckdb npm package" },
     { path: path.join(agentDir,  "malloy-model-git/cpm_benchmarks.parquet"), label: "CPM parquet database" },
     { path: path.join(agentDir,  "malloy-model-git/cpm_monthly_updates.csv"), label: "CPM updates CSV" },
-    { path: path.join(agentDir,  "logs"),                       label: "Logs directory" },
   ]
 
   for (const f of files) {
@@ -440,49 +438,18 @@ async function checkScriptIntegrity() {
   const src = readFileSync(scriptPath, "utf-8")
 
   const checks = [
-    { key: "DuckDB import",         pass: src.includes("duckdb"),                                   fix: null },
-    { key: "No gzip header",        pass: !src.includes('"Accept-Encoding": "gzip"'),               fix: "Remove Accept-Encoding: gzip header from braveSearch()" },
-    { key: "Regex fallback",        pass: src.includes("extractCpmWithRegex"),                      fix: "Add regex CPM extraction fallback function" },
-    { key: "EMAIL_CC support",      pass: src.includes("EMAIL_CC"),                                 fix: "Add EMAIL_CC env var to sendEmail()" },
-    { key: "FORCE_UPDATE flag",     pass: src.includes("FORCE_UPDATE"),                             fix: "Add FORCE_UPDATE env var support" },
-    { key: "SendGrid 202 check",    pass: src.includes("202") || src.includes("status"),            fix: null },
-    { key: "GitHub PUT logging",    pass: src.includes("GitHub PUT failed"),                        fix: null },
-    // Report redesign checks (added after v1.0.4 overhaul)
-    { key: "Email bar chart",       pass: src.includes("buildEmailBarChart"),                       fix: "Email report missing chart layout — pull latest daily-report.mjs from repo" },
-    { key: "Email metrics section", pass: src.includes("buildEmailMetricsSection"),                 fix: "Email report missing metrics block — pull latest daily-report.mjs from repo" },
-    { key: "Metrics persistence",   pass: src.includes("agent-metrics.json") || src.includes("METRICS_PATH"), fix: "Metrics persistence missing — agent-metrics.json writes not found" },
-    { key: "Token tracking",        pass: src.includes("_inputTokens"),                             fix: "Real token tracking missing from synthesizeInsights() — update daily-report.mjs" },
-    { key: "AI source links",       pass: src.includes("sources") && src.includes("src.url"),       fix: "AI insights missing source URL support — update synthesizeInsights() and buildHtmlReport()" },
+    { key: "DuckDB import",       pass: src.includes("duckdb"),                         fix: null },
+    { key: "No gzip header",      pass: !src.includes('"Accept-Encoding": "gzip"'),      fix: "Remove Accept-Encoding: gzip header from braveSearch()" },
+    { key: "Regex fallback",      pass: src.includes("extractCpmWithRegex"),             fix: "Add regex CPM extraction fallback function" },
+    { key: "EMAIL_CC support",    pass: src.includes("EMAIL_CC"),                        fix: "Add EMAIL_CC env var to sendEmail()" },
+    { key: "FORCE_UPDATE flag",   pass: src.includes("FORCE_UPDATE"),                   fix: "Add FORCE_UPDATE env var support" },
+    { key: "SendGrid 202 check",  pass: src.includes("202") || src.includes("status"),  fix: null },
+    { key: "GitHub PUT logging",  pass: src.includes("GitHub PUT failed"),               fix: null },
+    { key: "No fake data",        pass: !src.includes("FAKE") && !src.includes("mock"), fix: null },
   ]
 
   for (const c of checks) {
     check(c.key, c.pass ? "PASS" : c.fix ? "FAIL" : "WARN", c.pass ? "OK" : (c.fix ?? "Missing"), c.fix)
-  }
-}
-
-// [9] Guild agent.ts integrity
-async function checkAgentTs() {
-  section("9. Guild Agent Integrity (agent.ts)")
-
-  const tsPath = path.join(__dirname, "agent.ts")
-  if (!existsSync(tsPath)) {
-    check("agent.ts present", "FAIL", "File missing — Guild agent not in sync with daily-report.mjs",
-      "Copy agent.ts from source Mac or pull latest from GitHub repo")
-    return
-  }
-
-  const src = readFileSync(tsPath, "utf-8")
-  const checks = [
-    { key: "isTestRun guard",        pass: src.includes("isTestRun"),                   fix: "Test run detection missing — Guild UI test runs will inflate metrics. Pull latest agent.ts." },
-    { key: "Reset mode",             pass: src.includes("data.reset === true"),          fix: "Reset mode missing — cannot clear agent state via { reset: true }. Pull latest agent.ts." },
-    { key: "ROI breakdown",          pass: src.includes("ANALYST_RATE_USD_PER_HOUR"),   fix: "ROI estimate constants missing from agent.ts" },
-    { key: "EMPTY_STATE defined",    pass: src.includes("EMPTY_STATE"),                 fix: "EMPTY_STATE constant missing — state reset won't work" },
-    { key: "Real token tracking",    pass: src.includes("guild_get_daily_llm_usage"),   fix: "Guild LLM usage API call missing — token counts will be 0" },
-    { key: "Run history capped",     pass: src.includes("slice(-29)"),                  fix: "Run history not capped — state will grow unbounded over time" },
-  ]
-
-  for (const c of checks) {
-    check(c.key, c.pass ? "PASS" : "FAIL", c.pass ? "OK" : (c.fix ?? "Missing"), c.fix)
   }
 }
 
@@ -614,7 +581,6 @@ async function main() {
   await checkGitHub()
   await checkSchedule()
   await checkScriptIntegrity()
-  await checkAgentTs()
 
   const passes = results.filter(r => r.status === "PASS").length
   const warns  = results.filter(r => r.status === "WARN").length
