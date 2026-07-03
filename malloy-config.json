@@ -3,6 +3,14 @@
   "connections": {
     "duckdb": {
       "is": "duckdb"
+    },
+    "neon": {
+      "is": "postgres",
+      "host":         { "env": "NEON_HOST" },
+      "databaseName": { "env": "NEON_DATABASE" },
+      "username":     { "env": "NEON_USER" },
+      "password":     { "env": "NEON_PASSWORD" },
+      "port": 5432
     }
   }
 }

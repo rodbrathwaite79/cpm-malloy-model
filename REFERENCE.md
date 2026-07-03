@@ -39,13 +39,16 @@ Repo: https://github.com/rodbrathwaite79/cpm-malloy-model
 
 | Service | URL | What it does |
 |---------|-----|--------------|
-| Vercel | https://vercel.com/brathwaite/cpm-vercel | Hosts serverless functions + cron |
+| Vercel (cpm-vercel) | https://vercel.com/brathwaite/cpm-vercel | Hosts serverless functions + cron |
+| Vercel (malloyyo) | https://vercel.com/brathwaite/malloyyo | Malloy model server (MCP) |
 | Neon | https://console.neon.tech → mute-thunder-42290582 | Postgres database |
 | Resend | https://resend.com | Email sending |
 | Brave Search | https://search.brave.com/app | Web data for CPM prices |
 | GitHub | https://github.com/rodbrathwaite79/cpm-malloy-model | Source code |
-| Live report URL | https://cpm-vercel.vercel.app/api/cpm-report | Trigger manually (needs auth header) |
-| Metrics API | https://cpm-vercel.vercel.app/api/metrics | Read run history (public GET) |
+| Live report URL | https://cpm-vercel-drphd5mkm-brathwaite.vercel.app/api/cpm-report | Trigger manually (needs auth header) |
+| Metrics API | https://cpm-vercel-drphd5mkm-brathwaite.vercel.app/api/metrics | Read run history (public GET) |
+| Log AI interaction | https://cpm-vercel-drphd5mkm-brathwaite.vercel.app/api/log-interaction | POST + LOG_API_KEY (universal tracker) |
+| Malloyyo MCP | https://malloyyo-eehpbmwns-brathwaite.vercel.app | Malloy semantic model server |
 
 ---
 
@@ -169,7 +172,7 @@ Runs daily at 8am EST automatically via cron. No action needed.
 
 ### Trigger Vercel manually
 ```bash
-curl -X POST https://cpm-vercel.vercel.app/api/cpm-report \
+curl -X POST https://cpm-vercel-drphd5mkm-brathwaite.vercel.app/api/cpm-report \
   -H "Authorization: Bearer YOUR_CRON_SECRET"
 ```
 Returns: `{"ok":true,"outcome":"autonomous","dataPoints":N,"historicalRows":210}`

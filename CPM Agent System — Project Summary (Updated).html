@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CPM Agent System — Project Summary (Updated)</title>
+<style>
+  :root {
+    --bg:       #0a0f1e;
+    --surface:  #0f172a;
+    --border:   #1e293b;
+    --muted:    #334155;
+    --text:     #e2e8f0;
+    --subtle:   #94a3b8;
+    --blue:     #3b82f6;
+    --green:    #22c55e;
+    --amber:    #f59e0b;
+    --red:      #ef4444;
+    --purple:   #a78bfa;
+    --cyan:     #22d3ee;
+    --teal:     #14b8a6;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 15px;
+    line-height: 1.7;
+  }
+
+  /* NAV */
+  nav {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(10,15,30,0.96);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 32px;
+    display: flex; gap: 0; align-items: center;
+    overflow-x: auto;
+  }
+  nav a {
+    color: var(--subtle); text-decoration: none;
+    font-size: 12px; font-weight: 600; letter-spacing: .5px;
+    text-transform: uppercase; white-space: nowrap;
+    padding: 14px 16px;
+    border-bottom: 2px solid transparent;
+    transition: color .2s, border-color .2s;
+  }
+  nav a:hover { color: var(--text); border-bottom-color: var(--blue); }
+  .nav-brand { color: var(--blue); font-size: 13px; font-weight: 700; margin-right: 24px; white-space: nowrap; }
+
+  /* LAYOUT */
+  .container { max-width: 1100px; margin: 0 auto; padding: 0 32px; }
+  section { padding: 64px 0; border-bottom: 1px solid var(--border); }
+  section:last-child { border-bottom: none; }
+
+  /* HERO */
+  .hero { padding: 72px 0 56px; text-align: center; }
+  .hero-tag {
+    display: inline-block;
+    background: rgba(59,130,246,.12); color: var(--blue);
+    font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase;
+    padding: 5px 14px; border-radius: 20px; border: 1px solid rgba(59,130,246,.25);
+    margin-bottom: 20px;
+  }
+  h1 { font-size: 40px; font-weight: 800; line-height: 1.15; margin-bottom: 16px; }
+  .hero-sub { color: var(--subtle); font-size: 17px; max-width: 680px; margin: 0 auto 32px; }
+  .question-box {
+    background: linear-gradient(135deg, rgba(59,130,246,.08), rgba(167,139,250,.08));
+    border: 1px solid rgba(59,130,246,.3);
+    border-radius: 12px; padding: 24px 32px; max-width: 760px; margin: 0 auto;
+    font-size: 16px; font-style: italic; color: var(--text);
+  }
+  .question-box strong { color: var(--blue); font-style: normal; }
+
+  /* HEADINGS */
+  h2 { font-size: 26px; font-weight: 700; margin-bottom: 8px; }
+  h3 { font-size: 18px; font-weight: 600; margin-bottom: 8px; color: var(--text); }
+  .section-label {
+    font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase;
+    color: var(--blue); margin-bottom: 8px;
+  }
+  .section-sub { color: var(--subtle); margin-bottom: 36px; font-size: 15px; }
+
+  /* CARDS */
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 24px;
+    transition: border-color .2s;
+  }
+  .card:hover { border-color: var(--muted); }
+  .card-icon { font-size: 28px; margin-bottom: 12px; }
+  .card-title { font-size: 16px; font-weight: 700; margin-bottom: 6px; }
+  .card-file {
+    font-family: monospace; font-size: 11px; color: var(--subtle);
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 4px; padding: 2px 8px; display: inline-block; margin-bottom: 12px;
+  }
+  .card p { color: var(--subtle); font-size: 14px; line-height: 1.6; }
+  .card ul { color: var(--subtle); font-size: 13px; padding-left: 16px; margin-top: 8px; }
+  .card li { margin-bottom: 4px; }
+  .badge {
+    display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: .5px;
+    text-transform: uppercase; padding: 2px 8px; border-radius: 10px; margin-right: 6px; margin-bottom: 8px;
+  }
+  .badge-blue   { background: rgba(59,130,246,.15); color: var(--blue); }
+  .badge-green  { background: rgba(34,197,94,.15);  color: var(--green); }
+  .badge-purple { background: rgba(167,139,250,.15); color: var(--purple); }
+  .badge-amber  { background: rgba(245,158,11,.15);  color: var(--amber); }
+  .badge-cyan   { background: rgba(34,211,238,.15);  color: var(--cyan); }
+  .badge-teal   { background: rgba(20,184,166,.15);  color: var(--teal); }
+
+  /* ARCHITECTURE DIAGRAM */
+  .arch-wrap { overflow-x: auto; }
+  svg text { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+
+  /* FLOW STEPS */
+  .flow { display: flex; flex-direction: column; gap: 0; }
+  .flow-step {
+    display: flex; gap: 20px; align-items: flex-start;
+    padding: 20px 0;
+    border-left: 2px solid var(--border);
+    margin-left: 20px; padding-left: 28px;
+    position: relative;
+  }
+  .flow-step::before {
+    content: attr(data-n);
+    position: absolute; left: -14px; top: 20px;
+    width: 26px; height: 26px; border-radius: 50%;
+    background: var(--blue); color: white;
+    font-size: 12px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .flow-step:last-child { border-left-color: transparent; }
+  .flow-title { font-weight: 600; font-size: 15px; margin-bottom: 4px; }
+  .flow-desc { color: var(--subtle); font-size: 13px; }
+  code { font-family: monospace; font-size: 12px; color: var(--cyan);
+         background: rgba(0,0,0,.3); padding: 1px 5px; border-radius: 3px; }
+
+  /* SERVICES TABLE */
+  .services-table { width: 100%; border-collapse: collapse; margin-top: 24px; }
+  .services-table th {
+    text-align: left; font-size: 11px; font-weight: 700; letter-spacing: 1px;
+    text-transform: uppercase; color: var(--subtle);
+    padding: 10px 16px; border-bottom: 1px solid var(--border);
+  }
+  .services-table td {
+    padding: 14px 16px; border-bottom: 1px solid var(--border);
+    vertical-align: top; font-size: 14px;
+  }
+  .services-table tr:last-child td { border-bottom: none; }
+  .services-table tr:hover td { background: rgba(255,255,255,.02); }
+  .services-table a { color: var(--blue); text-decoration: none; }
+  .services-table a:hover { text-decoration: underline; }
+  .svc-name  { font-weight: 600; color: var(--text); }
+  .svc-note  { color: var(--subtle); font-size: 12px; margin-top: 4px; }
+
+  /* FILE TREE */
+  .file-tree {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 12px; padding: 24px;
+    font-family: monospace; font-size: 13px;
+    color: var(--subtle); line-height: 1.9;
+  }
+  .file-tree .dir  { color: var(--cyan); }
+  .file-tree .file { color: var(--text); }
+  .file-tree .note { color: var(--muted); }
+
+  /* COMPARE */
+  .compare { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 24px; }
+  .compare-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px;
+  }
+  .compare-card.current { border-color: var(--muted); }
+  .compare-card.better  { border-color: rgba(34,197,94,.3); }
+  .compare-label {
+    font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase;
+    margin-bottom: 14px;
+  }
+  .compare-card.current .compare-label { color: var(--subtle); }
+  .compare-card.better  .compare-label { color: var(--green); }
+  .compare-card ul { color: var(--subtle); font-size: 13px; padding-left: 16px; }
+  .compare-card li { margin-bottom: 8px; }
+  .pro  { color: var(--green); }
+  .con  { color: var(--red); }
+
+  /* CALLOUT */
+  .callout {
+    border-left: 3px solid var(--blue);
+    background: rgba(59,130,246,.06);
+    padding: 16px 20px; border-radius: 0 8px 8px 0;
+    margin: 20px 0; font-size: 14px; color: var(--subtle);
+  }
+  .callout strong { color: var(--text); }
+  .callout-green {
+    border-left: 3px solid var(--green);
+    background: rgba(34,197,94,.06);
+    padding: 16px 20px; border-radius: 0 8px 8px 0;
+    margin: 20px 0; font-size: 14px; color: var(--subtle);
+  }
+  .callout-green strong { color: var(--green); }
+
+  /* VERDICT */
+  .verdict-box {
+    background: linear-gradient(135deg, rgba(34,197,94,.08), rgba(20,184,166,.08));
+    border: 1px solid rgba(34,197,94,.25);
+    border-radius: 12px; padding: 28px 32px; margin-top: 32px;
+  }
+  .verdict-title { font-size: 18px; font-weight: 700; color: var(--green); margin-bottom: 10px; }
+
+  /* FOOTER */
+  footer {
+    text-align: center; color: var(--muted); font-size: 12px;
+    padding: 40px 32px; border-top: 1px solid var(--border);
+  }
+
+  @media (max-width: 700px) {
+    h1 { font-size: 28px; }
+    .compare { grid-template-columns: 1fr; }
+    .container { padding: 0 16px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <span class="nav-brand">CPM Agent</span>
+  <a href="#what-was-built">What Was Built</a>
+  <a href="#architecture">Architecture</a>
+  <a href="#agents">The Agents</a>
+  <a href="#daily-run">How It Runs</a>
+  <a href="#services">Services & Files</a>
+  <a href="#setup">New Mac Setup</a>
+</nav>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="container">
+    <div class="hero-tag">Vercel · Neon Postgres · Resend · Brave Search · Anthropic</div>
+    <h1>CPM Benchmark<br>Report Agent System</h1>
+    <p class="hero-sub">
+      A fully autonomous media intelligence pipeline that collects real CPM pricing data,
+      stores it in a cloud database, synthesizes AI insights, and emails a daily report —
+      whether or not your Mac is on.
+    </p>
+    <div class="question-box">
+      <strong>The architecture that was built:</strong><br>
+      A Vercel serverless cron runs at 8am EST daily, pulling CPM web data via Brave Search,
+      reading/writing 210+ rows in Neon Postgres, and sending HTML email reports via Resend.
+      Mac-side scripts serve as a local backup and dev environment.
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- SECTION 1: WHAT WAS BUILT -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<section id="what-was-built">
+  <div class="container">
+    <div class="section-label">Section 1</div>
+    <h2>What Was Built</h2>
+    <p class="section-sub">Four components working as one system. Vercel is the primary runner — your Mac is the backup and dev environment.</p>
+
+    <div class="card-grid">
+
+      <div class="card">
+        <div class="card-icon">⚡</div>
+        <span class="badge badge-blue">Primary Runner</span>
+        <div class="card-title">Vercel Cron Handler</div>
+        <div class="card-file">cpm-vercel/api/cpm-report.js</div>
+        <p>The production workhorse. A Vercel serverless function that fires every day at 8am EST via cron schedule — no Mac required. Orchestrates the full report pipeline and writes results to Neon Postgres.</p>
+        <ul>
+          <li>Fires via Vercel cron: <code>0 13 * * *</code> (8am EST)</li>
+          <li>Searches Brave API for current CPM pricing data</li>
+          <li>Reads and writes CPM rows to Neon Postgres</li>
+          <li>Builds HTML email report and sends via Resend</li>
+          <li>Commits monthly CSV backup to GitHub</li>
+          <li>Logs run outcome to <code>agent_runs</code> table in Neon</li>
+          <li>Protected by <code>Authorization: Bearer CRON_SECRET</code></li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-icon">💻</div>
+        <span class="badge badge-amber">Mac Backup</span>
+        <div class="card-title">Daily Report Script</div>
+        <div class="card-file">agent/daily-report.mjs</div>
+        <p>The Mac-side counterpart to the Vercel function. Runs locally via macOS launchd at 8am as a fallback. Uses the same logic but reads/writes local parquet via DuckDB instead of Neon. Useful for dev and testing.</p>
+        <ul>
+          <li>Triggered by <code>com.rod.cpm-report.plist</code> launchd agent</li>
+          <li>Queries <code>cpm_benchmarks.parquet</code> via DuckDB (no server needed)</li>
+          <li>Calls Anthropic API directly for AI synthesis</li>
+          <li>Sends email via Resend REST API</li>
+          <li>Pushes monthly CSV to GitHub on the 1st</li>
+          <li>Run with <code>FORCE_UPDATE=true</code> to bypass once-per-month guard</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-icon">🔍</div>
+        <span class="badge badge-amber">QA Agent</span>
+        <div class="card-title">Quality Agent</div>
+        <div class="card-file">agent/quality-agent.mjs</div>
+        <p>Autonomous system health checker. Runs 9 validation sections covering credentials, APIs, local data, launchd, and script integrity. Emails a color-coded pass/fail report. Can auto-fix some issues.</p>
+        <ul>
+          <li>Validates all required env vars present</li>
+          <li>Confirms DuckDB can read the parquet file (210 rows)</li>
+          <li>Live-tests Brave Search, Resend key format, and GitHub token</li>
+          <li>Verifies launchd plist is loaded with correct Node path</li>
+          <li>Checks script integrity (key code patterns in daily-report.mjs)</li>
+          <li>Run with <code>--fix</code> flag to auto-repair Node path in plist</li>
+          <li>Sends HTML QA report email when done</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <div class="card-icon">🖥️</div>
+        <span class="badge badge-cyan">Setup Agent</span>
+        <div class="card-title">Mac Setup Script</div>
+        <div class="card-file">agent/setup-new-mac.sh</div>
+        <p>One command migrates the entire Mac-side system to a new machine. Handles everything from Homebrew to launchd installation. Detects Apple Silicon vs Intel automatically.</p>
+        <ul>
+          <li>Installs: Xcode tools, Homebrew, nvm, Node v22</li>
+          <li>Clones repo and installs DuckDB (architecture-matched binary)</li>
+          <li>Generates machine-specific launchd plist with correct Node path</li>
+          <li>Prompts for credentials (skips if <code>.env</code> already exists)</li>
+          <li>Loads launchd schedule automatically</li>
+          <li>Runs Quality Agent at end to confirm everything is healthy</li>
+        </ul>
+      </div>
+
+    </div>
+
+    <div class="callout-green" style="margin-top: 32px;">
+      <strong>The "Better Design" from v1 was built.</strong> The original document's architecture retrospective proposed moving from Mac launchd to a Vercel cron, replacing local JSON with a cloud database, and using a REST-based email API. All three are now live: Vercel cron fires daily, Neon Postgres stores 210+ rows, and Resend handles email delivery.
+    </div>
+  </div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- SECTION 2: ARCHITECTURE DIAGRAM -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<section id="architecture">
+  <div class="container">
+    <div class="section-label">Section 2</div>
+    <h2>System Architecture</h2>
+    <p class="section-sub">Every service this system touches, and how they connect. Vercel is the spine.</p>
+
+    <div class="arch-wrap">
+      <svg viewBox="0 0 1060 640" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:1060px;display:block;margin:0 auto;">
+        <defs>
+          <marker id="arr" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#3b82f6" opacity=".7"/>
+          </marker>
+          <marker id="arr-g" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#22c55e" opacity=".7"/>
+          </marker>
+          <marker id="arr-a" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#f59e0b" opacity=".7"/>
+          </marker>
+          <marker id="arr-t" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+            <polygon points="0 0, 8 3, 0 6" fill="#14b8a6" opacity=".7"/>
+          </marker>
+        </defs>
+
+        <!-- BG -->
+        <rect width="1060" height="640" fill="#0a0f1e"/>
+
+        <!-- LEGEND -->
+        <rect x="20" y="16" width="12" height="3" fill="#3b82f6" rx="1"/>
+        <text x="38" y="23" fill="#64748b" font-size="11">data / compute flow</text>
+        <rect x="185" y="16" width="12" height="3" fill="#22c55e" rx="1"/>
+        <text x="203" y="23" fill="#64748b" font-size="11">email delivery</text>
+        <rect x="310" y="16" width="12" height="3" fill="#14b8a6" rx="1"/>
+        <text x="328" y="23" fill="#64748b" font-size="11">Neon DB reads/writes</text>
+        <rect x="482" y="16" width="12" height="3" fill="#f59e0b" rx="1" stroke-dasharray="4,3"/>
+        <text x="500" y="23" fill="#64748b" font-size="11">Mac backup (launchd)</text>
+
+        <!-- ════ TOP: VERCEL CRON TRIGGER ════ -->
+        <rect x="390" y="44" width="180" height="48" rx="8" fill="#0f172a" stroke="#3b82f6" stroke-width="1.5"/>
+        <text x="480" y="64" text-anchor="middle" fill="#3b82f6" font-size="12" font-weight="700">Vercel Cron</text>
+        <text x="480" y="80" text-anchor="middle" fill="#64748b" font-size="11">8:00 AM EST daily · cloud</text>
+
+        <!-- ════ CENTER: cpm-report.js ════ -->
+        <rect x="330" y="124" width="300" height="290" rx="14" fill="#0f172a" stroke="#3b82f6" stroke-width="2"/>
+        <text x="480" y="150" text-anchor="middle" fill="#3b82f6" font-size="14" font-weight="700">cpm-report.js</text>
+        <text x="480" y="168" text-anchor="middle" fill="#64748b" font-size="11">Vercel serverless function</text>
+
+        <!-- steps inside Vercel fn -->
+        <rect x="348" y="178" width="264" height="26" rx="5" fill="#1e293b"/>
+        <text x="480" y="195" text-anchor="middle" fill="#94a3b8" font-size="11">① Search Brave for CPM web data</text>
+        <rect x="348" y="210" width="264" height="26" rx="5" fill="#1e293b"/>
+        <text x="480" y="227" text-anchor="middle" fill="#94a3b8" font-size="11">② Read CPM rows from Neon Postgres</text>
+        <rect x="348" y="242" width="264" height="26" rx="5" fill="#1e293b"/>
+        <text x="480" y="259" text-anchor="middle" fill="#94a3b8" font-size="11">③ Build AI insights + HTML report</text>
+        <rect x="348" y="274" width="264" height="26" rx="5" fill="#1e293b"/>
+        <text x="480" y="291" text-anchor="middle" fill="#94a3b8" font-size="11">④ Send email via Resend</text>
+        <rect x="348" y="306" width="264" height="26" rx="5" fill="#1e293b"/>
+        <text x="480" y="323" text-anchor="middle" fill="#94a3b8" font-size="11">⑤ Write new CPM rows → Neon</text>
+        <rect x="348" y="338" width="264" height="26" rx="5" fill="#1e293b"/>
+        <text x="480" y="355" text-anchor="middle" fill="#94a3b8" font-size="11">⑥ Log run outcome → agent_runs</text>
+        <rect x="348" y="370" width="264" height="26" rx="5" fill="#1e293b"/>
+        <text x="480" y="387" text-anchor="middle" fill="#94a3b8" font-size="11">⑦ 1st of month: commit CSV → GitHub</text>
+
+        <!-- ════ LEFT COLUMN: INPUTS ════ -->
+
+        <!-- Brave Search -->
+        <rect x="60" y="130" width="160" height="72" rx="10" fill="#0f172a" stroke="#334155" stroke-width="1.5"/>
+        <text x="140" y="160" text-anchor="middle" fill="#22d3ee" font-size="13" font-weight="700">Brave Search</text>
+        <text x="140" y="178" text-anchor="middle" fill="#64748b" font-size="11">Real-time web CPM</text>
+        <text x="140" y="193" text-anchor="middle" fill="#64748b" font-size="11">data + source URLs</text>
+
+        <!-- Neon Postgres -->
+        <rect x="60" y="230" width="160" height="80" rx="10" fill="#0f172a" stroke="#14b8a6" stroke-width="1.5"/>
+        <text x="140" y="258" text-anchor="middle" fill="#14b8a6" font-size="13" font-weight="700">Neon Postgres</text>
+        <text x="140" y="276" text-anchor="middle" fill="#64748b" font-size="11">210+ CPM rows</text>
+        <text x="140" y="291" text-anchor="middle" fill="#64748b" font-size="11">cpm_benchmarks</text>
+        <text x="140" y="306" text-anchor="middle" fill="#64748b" font-size="11">agent_runs</text>
+
+        <!-- GitHub -->
+        <rect x="60" y="340" width="160" height="72" rx="10" fill="#0f172a" stroke="#334155" stroke-width="1.5"/>
+        <text x="140" y="370" text-anchor="middle" fill="#22d3ee" font-size="13" font-weight="700">GitHub</text>
+        <text x="140" y="388" text-anchor="middle" fill="#64748b" font-size="11">Source code + CSV</text>
+        <text x="140" y="403" text-anchor="middle" fill="#64748b" font-size="11">monthly backup</text>
+
+        <!-- ════ RIGHT COLUMN: OUTPUTS ════ -->
+
+        <!-- Resend -->
+        <rect x="750" y="130" width="160" height="72" rx="10" fill="#0f172a" stroke="#22c55e" stroke-width="1.5"/>
+        <text x="830" y="160" text-anchor="middle" fill="#22c55e" font-size="13" font-weight="700">Resend</text>
+        <text x="830" y="178" text-anchor="middle" fill="#64748b" font-size="11">REST email API</text>
+        <text x="830" y="193" text-anchor="middle" fill="#64748b" font-size="11">3,000/month free</text>
+
+        <!-- Email inbox -->
+        <rect x="750" y="230" width="160" height="56" rx="10" fill="#0f172a" stroke="#1e293b" stroke-width="1.5"/>
+        <text x="830" y="254" text-anchor="middle" fill="#94a3b8" font-size="12" font-weight="600">Daily Email</text>
+        <text x="830" y="271" text-anchor="middle" fill="#64748b" font-size="11">HTML charts + AI insights</text>
+
+        <!-- Neon write (run log) -->
+        <rect x="750" y="320" width="160" height="72" rx="10" fill="#0f172a" stroke="#14b8a6" stroke-width="1.5"/>
+        <text x="830" y="348" text-anchor="middle" fill="#14b8a6" font-size="12" font-weight="700">Run Log</text>
+        <text x="830" y="366" text-anchor="middle" fill="#64748b" font-size="11">agent_runs in Neon</text>
+        <text x="830" y="381" text-anchor="middle" fill="#64748b" font-size="11">outcome + data points</text>
+
+        <!-- ════ BOTTOM: MAC BACKUP ════ -->
+        <rect x="200" y="490" width="560" height="100" rx="12" fill="#0f172a" stroke="#334155" stroke-width="1.5" stroke-dasharray="6,4"/>
+        <text x="480" y="518" text-anchor="middle" fill="#64748b" font-size="13" font-weight="600">Mac Backup (launchd · 8am daily)</text>
+        <text x="310" y="542" text-anchor="middle" fill="#475569" font-size="11">daily-report.mjs</text>
+        <text x="310" y="557" text-anchor="middle" fill="#334155" font-size="10">DuckDB + parquet</text>
+        <text x="480" y="542" text-anchor="middle" fill="#475569" font-size="11">quality-agent.mjs</text>
+        <text x="480" y="557" text-anchor="middle" fill="#334155" font-size="10">9-check validator</text>
+        <text x="650" y="542" text-anchor="middle" fill="#475569" font-size="11">setup-new-mac.sh</text>
+        <text x="650" y="557" text-anchor="middle" fill="#334155" font-size="10">one-command install</text>
+
+        <!-- ════ ARROWS ════ -->
+
+        <!-- Vercel Cron → cpm-report.js -->
+        <line x1="480" y1="92" x2="480" y2="122" stroke="#3b82f6" stroke-width="1.5" stroke-opacity=".7" marker-end="url(#arr)"/>
+
+        <!-- Brave → cpm-report.js -->
+        <line x1="220" y1="166" x2="328" y2="210" stroke="#3b82f6" stroke-width="1.5" stroke-opacity=".6" marker-end="url(#arr)"/>
+
+        <!-- Neon READ → cpm-report.js -->
+        <line x1="220" y1="262" x2="328" y2="262" stroke="#14b8a6" stroke-width="1.5" stroke-opacity=".7" marker-end="url(#arr-t)"/>
+
+        <!-- GitHub → cpm-report.js -->
+        <line x1="220" y1="376" x2="328" y2="350" stroke="#3b82f6" stroke-width="1.5" stroke-opacity=".4" stroke-dasharray="5,4" marker-end="url(#arr)"/>
+
+        <!-- cpm-report.js → Resend -->
+        <line x1="632" y1="220" x2="748" y2="180" stroke="#22c55e" stroke-width="1.5" stroke-opacity=".7" marker-end="url(#arr-g)"/>
+
+        <!-- Resend → Email -->
+        <line x1="830" y1="202" x2="830" y2="228" stroke="#22c55e" stroke-width="1.5" stroke-opacity=".6" marker-end="url(#arr-g)"/>
+
+        <!-- cpm-report.js → Neon WRITE -->
+        <line x1="632" y1="310" x2="748" y2="345" stroke="#14b8a6" stroke-width="1.5" stroke-opacity=".7" marker-end="url(#arr-t)"/>
+
+        <!-- cpm-report.js → GitHub (CSV commit, 1st of month) -->
+        <line x1="420" y1="416" x2="220" y2="380" stroke="#3b82f6" stroke-width="1" stroke-opacity=".3" stroke-dasharray="5,4" marker-end="url(#arr)"/>
+
+        <!-- Mac backup dashed line from Vercel area down -->
+        <line x1="480" y1="416" x2="480" y2="488" stroke="#334155" stroke-width="1.5" stroke-dasharray="6,4" marker-end="url(#arr)"/>
+
+      </svg>
+    </div>
+
+    <div class="callout" style="margin-top:24px;">
+      <strong>Two runners, one pipeline.</strong> Vercel is primary and runs in the cloud regardless of whether your Mac is on. The Mac scripts (launchd) are a backup that runs the same logic locally using DuckDB instead of Neon. Both write to GitHub for the monthly CSV commit; only Vercel writes to Neon Postgres.
+    </div>
+  </div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- SECTION 3: THE AGENTS IN DETAIL -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<section id="agents">
+  <div class="container">
+    <div class="section-label">Section 3</div>
+    <h2>The Agents — What Each One Does</h2>
+    <p class="section-sub">Each script has a single, well-defined job. Here's the full picture.</p>
+
+    <h3 style="color:var(--blue);margin-bottom:16px;margin-top:8px;">⚡ cpm-report.js — Vercel Cron Handler (Primary)</h3>
+    <p style="color:var(--subtle);font-size:14px;margin-bottom:20px;">
+      Lives in <code>cpm-vercel/api/cpm-report.js</code>. This is the production runner — it fires via Vercel's built-in cron scheduler at 8am EST every day, whether or not any Mac is running. It's a Node.js serverless function that has 10 seconds to complete and uses environment variables set in the Vercel dashboard (never committed to git).
+    </p>
+    <div class="card" style="margin-bottom:32px;">
+      <p><strong style="color:var(--text);">What it does, in order:</strong></p>
+      <ul style="margin-top:12px;">
+        <li>Authenticates via <code>Authorization: Bearer CRON_SECRET</code> header (blocks unauthorized triggers)</li>
+        <li>Calls Brave Search API for real-time CPM pricing data across ad channels</li>
+        <li>Reads existing CPM rows from Neon Postgres <code>cpm_benchmarks</code> table for historical context</li>
+        <li>Builds AI synthesis by combining historical data + fresh web findings into an HTML email report</li>
+        <li>Sends the formatted HTML email via Resend REST API to <code>EMAIL_TO</code></li>
+        <li>Writes new verified CPM data points to Neon Postgres (deduplicated via <code>UNIQUE(year, month, channel)</code>)</li>
+        <li>Logs run outcome, data points found, and timestamp to the <code>agent_runs</code> table</li>
+        <li>On the 1st of each month: encodes the monthly CSV and commits it to GitHub via Contents API</li>
+        <li>Returns <code>{"ok":true,"outcome":"autonomous","dataPoints":N,"historicalRows":210}</code></li>
+      </ul>
+    </div>
+
+    <h3 style="color:var(--amber);margin-bottom:16px;">💻 daily-report.mjs — Mac Backup Runner</h3>
+    <p style="color:var(--subtle);font-size:14px;margin-bottom:20px;">
+      Lives in <code>agent/daily-report.mjs</code> (repo) and <code>~/Documents/cpm-agent/agent/cpm-report-agent/daily-report.mjs</code> (working copy). Runs via macOS launchd as a backup at 8am. Uses the same pipeline logic but reads from a local <code>cpm_benchmarks.parquet</code> file via DuckDB instead of Neon — no network database connection required.
+    </p>
+    <div class="card" style="margin-bottom:32px;">
+      <p><strong style="color:var(--text);">Key differences from the Vercel version:</strong></p>
+      <ul style="margin-top:12px;">
+        <li>Reads CPM data from <code>cpm_benchmarks.parquet</code> via DuckDB (in-process, zero latency)</li>
+        <li>Uses <code>FORCE_UPDATE=true</code> env flag to bypass the once-per-month data guard</li>
+        <li>Credentials come from a local <code>.env</code> file (never in git)</li>
+        <li>Triggered by <code>com.rod.cpm-report.plist</code> at <code>~/Library/LaunchAgents/</code></li>
+        <li>Logs stdout/stderr to <code>~/Documents/cpm-agent/logs/</code></li>
+        <li>After any git changes, copy the updated script: <code>cp agent/daily-report.mjs ~/Documents/cpm-agent/agent/cpm-report-agent/</code></li>
+      </ul>
+    </div>
+
+    <h3 style="color:var(--amber);margin-bottom:16px;">🔍 quality-agent.mjs — System Validator</h3>
+    <p style="color:var(--subtle);font-size:14px;margin-bottom:20px;">
+      Lives in <code>agent/quality-agent.mjs</code>. Run this any time you want to confirm the Mac-side system is healthy, especially after setting up a new Mac or rotating credentials. It runs 9 check sections and emails a color-coded HTML report.
+    </p>
+    <div class="card" style="margin-bottom:32px;">
+      <p><strong style="color:var(--text);">What it validates:</strong></p>
+      <ul style="margin-top:12px;">
+        <li><strong style="color:var(--text);">Env vars:</strong> All required keys present (<code>BRAVE_API_KEY</code>, <code>GITHUB_TOKEN</code>, <code>RESEND_API_KEY</code>, <code>EMAIL_TO</code>)</li>
+        <li><strong style="color:var(--text);">Files:</strong> Scripts, parquet file, plist, and <code>node_modules</code> all exist</li>
+        <li><strong style="color:var(--text);">DuckDB:</strong> Can open and query parquet — confirms 210 rows readable</li>
+        <li><strong style="color:var(--text);">Brave API:</strong> Live HTTP call returns valid response</li>
+        <li><strong style="color:var(--text);">Resend:</strong> API key format valid (<code>re_</code> prefix check)</li>
+        <li><strong style="color:var(--text);">GitHub:</strong> Token valid and repo accessible</li>
+        <li><strong style="color:var(--text);">launchd:</strong> Schedule loaded with correct Node binary path</li>
+        <li><strong style="color:var(--text);">Script integrity:</strong> Key code patterns present in <code>daily-report.mjs</code></li>
+        <li><strong style="color:var(--text);">Auto-fix:</strong> <code>--fix</code> flag detects and corrects wrong Node path in plist</li>
+      </ul>
+    </div>
+
+    <h3 style="color:var(--cyan);margin-bottom:16px;">🖥️ setup-new-mac.sh — One-Command Mac Setup</h3>
+    <p style="color:var(--subtle);font-size:14px;margin-bottom:20px;">
+      Lives in <code>agent/setup-new-mac.sh</code>. Designed to be run on a brand new Mac with a single <code>curl | bash</code> command. Takes roughly 5 minutes and leaves the Mac fully configured and scheduled.
+    </p>
+    <div class="card">
+      <p><strong style="color:var(--text);">What it installs and configures:</strong></p>
+      <ul style="margin-top:12px;">
+        <li>Xcode Command Line Tools, Homebrew, nvm, Node.js v22</li>
+        <li>Clones <code>github.com/rodbrathwaite79/cpm-malloy-model</code></li>
+        <li>Installs DuckDB with the correct binary for your chip (ARM64 or x86)</li>
+        <li>Copies scripts to working directory at <code>~/Documents/cpm-agent/agent/cpm-report-agent/</code></li>
+        <li>Generates a machine-specific <code>com.rod.cpm-report.plist</code> with the correct Node path</li>
+        <li>Prompts for all required credentials and writes <code>.env</code> (skips if already present)</li>
+        <li>Loads the launchd schedule with <code>launchctl load</code></li>
+        <li>Runs <code>quality-agent.mjs</code> as final validation</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- SECTION 4: HOW A DAILY RUN WORKS -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<section id="daily-run">
+  <div class="container">
+    <div class="section-label">Section 4</div>
+    <h2>How a Daily Run Works</h2>
+    <p class="section-sub">From Vercel cron trigger to inbox delivery — the Vercel path (primary).</p>
+
+    <div class="flow">
+      <div class="flow-step" data-n="1">
+        <div>
+          <div class="flow-title">Vercel cron fires at 8:00 AM EST</div>
+          <div class="flow-desc">Vercel's scheduler triggers <code>POST /api/cpm-report</code> with the <code>Authorization: Bearer CRON_SECRET</code> header. This runs in Vercel's cloud — no Mac needed. Simultaneously (or as fallback if Vercel is down), the Mac's launchd plist triggers <code>daily-report.mjs</code> at 8am local time.</div>
+        </div>
+      </div>
+      <div class="flow-step" data-n="2">
+        <div>
+          <div class="flow-title">Brave Search — fetch real-time CPM web data</div>
+          <div class="flow-desc">The Brave Search API returns up to 10 web results for queries like "CPM advertising benchmark 2026." Each result's title, URL, and description are captured. These feed the AI prompt and appear as clickable source links in the email — grounding every claim in a real, dated web source.</div>
+        </div>
+      </div>
+      <div class="flow-step" data-n="3">
+        <div>
+          <div class="flow-title">Neon Postgres — read historical CPM rows</div>
+          <div class="flow-desc">The Vercel function connects to Neon via <code>DATABASE_URL</code> and queries the <code>cpm_benchmarks</code> table — 210+ rows of historical CPM data spanning multiple years, broken down by channel (paid social, paid search, programmatic display, video/CTV, streaming audio). This provides the trend context the AI uses for synthesis.</div>
+        </div>
+      </div>
+      <div class="flow-step" data-n="4">
+        <div>
+          <div class="flow-title">Build AI insights + HTML email</div>
+          <div class="flow-desc">Historical CPM data + Brave web excerpts are combined into an AI synthesis prompt. The model returns 3–4 structured insights with source citations. These insights, along with a horizontal bar chart and 6-month trend table, are assembled into an email-safe HTML document via <code>lib/report-html.js</code>.</div>
+        </div>
+      </div>
+      <div class="flow-step" data-n="5">
+        <div>
+          <div class="flow-title">Send email via Resend</div>
+          <div class="flow-desc">The HTML is POSTed to Resend's <code>/emails</code> endpoint using the <code>RESEND_API_KEY</code>. Resend is a pure REST API — no SMTP, no OAuth, no app passwords. A 200 response confirms queued delivery. Free tier covers 3,000 emails/month.</div>
+        </div>
+      </div>
+      <div class="flow-step" data-n="6">
+        <div>
+          <div class="flow-title">Write new CPM rows to Neon Postgres</div>
+          <div class="flow-desc">Any verified new CPM data points from the web search are written back to the <code>cpm_benchmarks</code> table. The schema uses <code>UNIQUE(year, month, channel)</code> so duplicate rows are silently skipped via <code>ON CONFLICT DO NOTHING</code>. This is how the database grows over time.</div>
+        </div>
+      </div>
+      <div class="flow-step" data-n="7">
+        <div>
+          <div class="flow-title">Log run outcome to agent_runs table</div>
+          <div class="flow-desc">A row is inserted into <code>agent_runs</code> with: <code>run_date</code>, <code>source</code> (vercel or mac), <code>outcome</code> (autonomous / error), <code>data_points_found</code>, and <code>created_at</code>. This is the system's audit trail — visible via <code>GET /api/metrics</code> without any credentials.</div>
+        </div>
+      </div>
+      <div class="flow-step" data-n="8">
+        <div>
+          <div class="flow-title">1st of month only: commit CSV backup to GitHub</div>
+          <div class="flow-desc">When new CPM data is verified and it's the 1st of the month, the monthly additions are serialized to <code>cpm_monthly_updates.csv</code> and pushed to the GitHub repo via the Contents API (base64-encoded PUT). This keeps a human-readable backup of every new row in git history — redundancy on top of Neon.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- SECTION 5: SERVICES, FILES & ENV VARS -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<section id="services">
+  <div class="container">
+    <div class="section-label">Section 5</div>
+    <h2>Services, Files &amp; Credentials</h2>
+    <p class="section-sub">Everything you'd need to know on a new machine or after a long break.</p>
+
+    <h3 style="margin-bottom:16px;">Live Service Dashboards</h3>
+    <table class="services-table">
+      <thead>
+        <tr>
+          <th style="width:18%">Service</th>
+          <th style="width:42%">URL</th>
+          <th>What It Does</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><div class="svc-name">Vercel</div></td>
+          <td><a href="https://vercel.com/brathwaite/cpm-vercel" target="_blank">vercel.com/brathwaite/cpm-vercel</a></td>
+          <td>Hosts the cron function + serverless API. View logs under Functions → cpm-report.</td>
+        </tr>
+        <tr>
+          <td><div class="svc-name">Neon</div></td>
+          <td><a href="https://console.neon.tech" target="_blank">console.neon.tech</a> → mute-thunder-42290582</td>
+          <td>Cloud Postgres. Contains <code>cpm_benchmarks</code> (210+ rows) and <code>agent_runs</code> (run history).</td>
+        </tr>
+        <tr>
+          <td><div class="svc-name">Resend</div></td>
+          <td><a href="https://resend.com" target="_blank">resend.com</a></td>
+          <td>Email delivery. REST API, free tier, 3,000/month. Check delivery logs here if email isn't arriving.</td>
+        </tr>
+        <tr>
+          <td><div class="svc-name">Brave Search</div></td>
+          <td><a href="https://search.brave.com/app" target="_blank">search.brave.com/app</a></td>
+          <td>Web data API for real-time CPM prices and industry sources.</td>
+        </tr>
+        <tr>
+          <td><div class="svc-name">GitHub</div></td>
+          <td><a href="https://github.com/rodbrathwaite79/cpm-malloy-model" target="_blank">github.com/rodbrathwaite79/cpm-malloy-model</a></td>
+          <td>Source code for all scripts, plus monthly CSV commits. Single repo holds both <code>agent/</code> and <code>cpm-vercel/</code>.</td>
+        </tr>
+        <tr>
+          <td><div class="svc-name">Metrics API</div></td>
+          <td><a href="https://cpm-vercel.vercel.app/api/metrics" target="_blank">cpm-vercel.vercel.app/api/metrics</a></td>
+          <td>Public GET endpoint. Returns run history from Neon — no credentials needed. Use this to check if the cron fired.</td>
+        </tr>
+        <tr>
+          <td><div class="svc-name">Manual Trigger</div></td>
+          <td><code>POST cpm-vercel.vercel.app/api/cpm-report</code></td>
+          <td>Trigger a report run manually: <code>curl -X POST ... -H "Authorization: Bearer CRON_SECRET"</code></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3 style="margin-top:40px;margin-bottom:16px;">Repo File Layout</h3>
+    <div class="file-tree">
+      <span class="dir">malloy-model-git/</span><br>
+      ├── <span class="dir">agent/</span>  <span class="note">← Mac-side scripts (synced to GitHub)</span><br>
+      │   ├── <span class="file">daily-report.mjs</span>      <span class="note">← Mac backup report runner</span><br>
+      │   ├── <span class="file">quality-agent.mjs</span>     <span class="note">← System health validator</span><br>
+      │   ├── <span class="file">setup-new-mac.sh</span>      <span class="note">← One-command new Mac setup</span><br>
+      │   ├── <span class="file">agent.ts</span>              <span class="note">← Guild AI agent (optional, manual)</span><br>
+      │   └── <span class="file">package.json</span>          <span class="note">← dep: duckdb only</span><br>
+      ├── <span class="dir">cpm-vercel/</span>  <span class="note">← Vercel serverless project (primary runner)</span><br>
+      │   ├── <span class="dir">api/</span><br>
+      │   │   ├── <span class="file">cpm-report.js</span>     <span class="note">← Main cron handler</span><br>
+      │   │   └── <span class="file">metrics.js</span>        <span class="note">← GET/POST run metrics</span><br>
+      │   ├── <span class="dir">lib/</span><br>
+      │   │   ├── <span class="file">database.js</span>       <span class="note">← Neon Postgres client + schema</span><br>
+      │   │   └── <span class="file">report-html.js</span>    <span class="note">← HTML email + dashboard builders</span><br>
+      │   ├── <span class="file">vercel.json</span>           <span class="note">← Cron: "0 13 * * *" = 8am EST</span><br>
+      │   └── <span class="file">.env.example</span>          <span class="note">← Template for Vercel env vars</span><br>
+      ├── <span class="file">cpm_benchmarks.parquet</span>    <span class="note">← Historical CPM data (Mac local backup)</span><br>
+      ├── <span class="file">cpm_monthly_updates.csv</span>   <span class="note">← New rows added by monthly runs</span><br>
+      ├── <span class="file">index.malloy</span>              <span class="note">← Malloy semantic model</span><br>
+      └── <span class="file">REFERENCE.md</span>              <span class="note">← System reference guide</span>
+    </div>
+
+    <h3 style="margin-top:40px;margin-bottom:16px;">Required Environment Variables</h3>
+
+    <p style="color:var(--subtle);font-size:14px;margin-bottom:16px;"><strong style="color:var(--text);">Vercel dashboard</strong> (Settings → Environment Variables) — never committed to git:</p>
+    <table class="services-table">
+      <thead><tr><th>Variable</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><code>DATABASE_URL</code></td><td>Neon connection string — from console.neon.tech</td></tr>
+        <tr><td><code>CRON_SECRET</code></td><td>Any random string — authenticates cron trigger</td></tr>
+        <tr><td><code>BRAVE_API_KEY</code></td><td>search.brave.com/app → API Keys</td></tr>
+        <tr><td><code>RESEND_API_KEY</code></td><td>resend.com → API Keys (starts with <code>re_</code>)</td></tr>
+        <tr><td><code>GITHUB_TOKEN</code></td><td>github.com/settings/tokens → Classic → repo scope</td></tr>
+        <tr><td><code>EMAIL_TO</code></td><td>Recipient email address</td></tr>
+        <tr><td><code>METRICS_API_KEY</code></td><td>Any random string — authenticates POST /api/metrics</td></tr>
+      </tbody>
+    </table>
+
+    <p style="color:var(--subtle);font-size:14px;margin-top:28px;margin-bottom:16px;"><strong style="color:var(--text);">Mac <code>.env</code></strong> at <code>~/Documents/cpm-agent/agent/cpm-report-agent/.env</code>:</p>
+    <table class="services-table">
+      <thead><tr><th>Variable</th><th>Required</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><code>BRAVE_API_KEY</code></td><td><span style="color:var(--green)">✅</span></td><td>Same as Vercel</td></tr>
+        <tr><td><code>GITHUB_TOKEN</code></td><td><span style="color:var(--green)">✅</span></td><td>Same as Vercel</td></tr>
+        <tr><td><code>RESEND_API_KEY</code></td><td><span style="color:var(--green)">✅</span></td><td>Same as Vercel</td></tr>
+        <tr><td><code>EMAIL_TO</code></td><td><span style="color:var(--green)">✅</span></td><td>Recipient address</td></tr>
+        <tr><td><code>ANTHROPIC_API_KEY</code></td><td><span style="color:var(--subtle)">optional</span></td><td>Enables AI synthesis in Mac script</td></tr>
+        <tr><td><code>MALLOYYO_URL</code></td><td><span style="color:var(--subtle)">optional</span></td><td>Malloy semantic model endpoint</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════════════════ -->
+<!-- SECTION 6: NEW MAC SETUP & TROUBLESHOOTING -->
+<!-- ═══════════════════════════════════════════════════════ -->
+<section id="setup">
+  <div class="container">
+    <div class="section-label">Section 6</div>
+    <h2>New Mac Setup &amp; Troubleshooting</h2>
+    <p class="section-sub">Everything you need to get a fresh Mac running and diagnose common failures.</p>
+
+    <h3 style="margin-bottom:16px;">One-Command Setup</h3>
+    <div class="file-tree" style="margin-bottom:20px;">
+      <span class="note"># Run this on the new Mac — takes ~5 minutes</span><br>
+      curl -sSL https://raw.githubusercontent.com/rodbrathwaite79/cpm-malloy-model/main/agent/setup-new-mac.sh | bash<br><br>
+      <span class="note"># After setup: set credentials</span><br>
+      nano ~/Documents/cpm-agent/agent/cpm-report-agent/.env<br><br>
+      <span class="note"># Verify everything is healthy</span><br>
+      node ~/Documents/cpm-agent/agent/cpm-report-agent/quality-agent.mjs
+    </div>
+
+    <div class="callout">
+      <strong>Apple Silicon note:</strong> If you see a DuckDB architecture error after setup, the ARM64 binary wasn't installed correctly. Fix with: <code>cd ~/Documents/cpm-agent/agent/cpm-report-agent && rm -rf node_modules && npm install</code>
+    </div>
+
+    <h3 style="margin-top:36px;margin-bottom:16px;">Updating Scripts After Git Changes</h3>
+    <div class="file-tree" style="margin-bottom:20px;">
+      <span class="note"># Pull latest from GitHub</span><br>
+      cd ~/Documents/cpm-agent/malloy-model-git && git pull<br><br>
+      <span class="note"># Copy to working directory</span><br>
+      cp agent/daily-report.mjs  ~/Documents/cpm-agent/agent/cpm-report-agent/<br>
+      cp agent/quality-agent.mjs ~/Documents/cpm-agent/agent/cpm-report-agent/<br><br>
+      <span class="note"># Verify</span><br>
+      node ~/Documents/cpm-agent/agent/cpm-report-agent/quality-agent.mjs
+    </div>
+
+    <h3 style="margin-top:36px;margin-bottom:16px;">Troubleshooting</h3>
+    <table class="services-table">
+      <thead>
+        <tr>
+          <th style="width:28%">Symptom</th>
+          <th style="width:28%">Likely Cause</th>
+          <th>Fix</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>DuckDB architecture error</td>
+          <td>ARM64 Mac with x86 binary</td>
+          <td><code>rm -rf node_modules && npm install</code></td>
+        </tr>
+        <tr>
+          <td>GitHub 401</td>
+          <td>Token expired or wrong</td>
+          <td>Rotate token at github.com/settings/tokens, update <code>.env</code> and Vercel env vars</td>
+        </tr>
+        <tr>
+          <td>Email not arriving</td>
+          <td>Wrong Resend API key</td>
+          <td>Check resend.com dashboard → API Keys; confirm key starts with <code>re_</code></td>
+        </tr>
+        <tr>
+          <td>Vercel cron not firing</td>
+          <td>Cron only runs on paid Vercel plans</td>
+          <td>Check Vercel billing / plan tier</td>
+        </tr>
+        <tr>
+          <td><code>dataPoints: 0</code> in response</td>
+          <td>No new CPM data found (normal mid-month)</td>
+          <td>Normal — historical data still included in email</td>
+        </tr>
+        <tr>
+          <td>Neon connection error</td>
+          <td>DATABASE_URL missing or expired</td>
+          <td>Re-copy connection string from console.neon.tech</td>
+        </tr>
+        <tr>
+          <td>launchd not triggering</td>
+          <td>Wrong Node path in plist</td>
+          <td><code>node quality-agent.mjs --fix</code></td>
+        </tr>
+        <tr>
+          <td><code>git pull</code> fails with 401</td>
+          <td>Old token cached by git</td>
+          <td><code>git remote set-url origin https://TOKEN@github.com/rodbrathwaite79/cpm-malloy-model.git</code></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="verdict-box" style="margin-top:36px;">
+      <div class="verdict-title">Architecture Summary</div>
+      <p style="color:var(--subtle);font-size:14px;line-height:1.7;">
+        The original design ran everything on a Mac — powerful, but fragile (Mac must be on, single point of failure, local-only data). The current design flips this: <strong style="color:var(--text);">Vercel is the primary runner</strong>, Neon Postgres is the database, and Resend handles email — all cloud, all always-on. The Mac scripts remain as a development environment and launchd backup, running identical logic against a local parquet file. The Malloy model (<code>index.malloy</code>) sits alongside the data for semantic querying via the CPM Reports connector. Two runners. One pipeline. Zero single point of failure.
+      </p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  CPM Agent System &nbsp;·&nbsp; Vercel + Neon Postgres + Resend + Brave Search + GitHub + Anthropic
+  &nbsp;·&nbsp; Last updated: June 2026 &nbsp;·&nbsp; Architecture: Rod Brathwaite
+</footer>
+
+</body>
+</html>

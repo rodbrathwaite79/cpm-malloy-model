@@ -1,0 +1,175 @@
+##! malloyVersion = "5"
+
+-- ai_tracker.malloy
+-- Semantic model over the ai_interactions table in Neon Postgres.
+-- Connection name "neon" is defined in malloy-config.json.
+--
+-- Views:
+--   roi_by_provider       ROI per AI provider (cost vs. value)
+--   quality_by_task_type  First-pass rate and corrections per task category
+--   value_trend           Monthly cumulative value and cost trends
+--   by_project            Cross-project comparison
+--   correction_analysis   Drill into tasks that needed corrections (first_pass = false)
+--   raw_interactions      Full detail table (latest 200)
+
+source: interactions is connection("neon").table("ai_interactions") extend {
+
+  -- ── Measures ──────────────────────────────────────────────────────────────
+
+  measure:
+    total_tasks       is count()
+    total_hours       is sum(hours_estimate)
+    total_value_usd   is sum(value_usd)
+    total_cost_usd    is sum(cost_usd)
+    total_corrections is sum(corrections)
+
+    first_pass_pct is
+      round(
+        avg(case when first_pass then 1.0 else 0.0 end) * 100,
+        1
+      )
+
+    roi_multiple is
+      round(
+        sum(value_usd) / nullif(sum(cost_usd), 0),
+        0
+      )
+
+    avg_hours_per_task is round(avg(hours_estimate), 2)
+    avg_value_per_task is round(avg(value_usd), 2)
+
+  -- ── Dimensions ────────────────────────────────────────────────────────────
+
+  dimension:
+    month_year is concat(
+      lpad(cast(extract(month from created_at) as varchar), 2, '0'),
+      '/',
+      cast(extract(year from created_at) as varchar)
+    )
+
+    is_subscription is cost_model = 'subscription' or cost_model = 'free'
+
+    quality_tier is
+      pick 'Excellent' when corrections = 0 and first_pass = true
+      pick 'Good'      when corrections <= 1
+      pick 'Fair'      when corrections <= 3
+      else 'Needs Work'
+}
+
+
+-- ── roi_by_provider ──────────────────────────────────────────────────────────
+-- Which AI provider delivers the most value per dollar?
+
+query: roi_by_provider is interactions -> {
+  group_by: provider, tool
+  aggregate:
+    total_tasks
+    total_hours
+    total_value_usd
+    total_cost_usd
+    roi_multiple
+    first_pass_pct
+    total_corrections
+  order_by: total_value_usd desc
+}
+
+
+-- ── quality_by_task_type ─────────────────────────────────────────────────────
+-- Which task categories benefit most from AI assistance?
+
+query: quality_by_task_type is interactions -> {
+  group_by: task_type
+  aggregate:
+    total_tasks
+    total_hours
+    total_value_usd
+    first_pass_pct
+    total_corrections
+    avg_hours_per_task
+    avg_value_per_task
+  order_by: total_value_usd desc
+}
+
+
+-- ── value_trend ──────────────────────────────────────────────────────────────
+-- Month-over-month value accumulation and cost
+
+query: value_trend is interactions -> {
+  group_by: month_year
+  aggregate:
+    total_tasks
+    total_value_usd
+    total_cost_usd
+    total_hours
+    first_pass_pct
+  order_by: month_year asc
+}
+
+
+-- ── by_project ───────────────────────────────────────────────────────────────
+-- Cross-project comparison (if using multiple projects)
+
+query: by_project is interactions -> {
+  group_by: project
+  aggregate:
+    total_tasks
+    total_hours
+    total_value_usd
+    total_cost_usd
+    roi_multiple
+    first_pass_pct
+  order_by: total_value_usd desc
+}
+
+
+-- ── correction_analysis ──────────────────────────────────────────────────────
+-- Deep dive on interactions that needed correction — find patterns
+
+query: correction_analysis is interactions -> {
+  where: first_pass = false
+  group_by: provider, tool, task_type
+  aggregate:
+    total_tasks
+    total_corrections
+    avg_hours_per_task
+  order_by: total_corrections desc
+}
+
+
+-- ── raw_interactions ─────────────────────────────────────────────────────────
+-- Full interaction log for audit / debugging
+
+query: raw_interactions is interactions -> {
+  select:
+    id
+    project
+    provider
+    tool
+    task_type
+    description
+    hours_estimate
+    value_usd
+    first_pass
+    corrections
+    cost_model
+    cost_usd
+    session_id
+    created_at
+  order_by: created_at desc
+  limit: 200
+}
+
+
+-- ── summary ──────────────────────────────────────────────────────────────────
+-- Single-row dashboard summary across all interactions
+
+query: summary is interactions -> {
+  aggregate:
+    total_tasks
+    total_hours
+    total_value_usd
+    total_cost_usd
+    roi_multiple
+    first_pass_pct
+    total_corrections
+}
