@@ -1,5 +1,7 @@
--- CPM Benchmarks Semantic Model
+-- CPM Benchmarks + AI Tracker Semantic Model
 -- Served via Malloyyo → MCP → Guild.ai Agent
+
+import "ai_tracker.malloy"
 
 source: cpm_benchmarks is duckdb.table('https://raw.githubusercontent.com/rodbrathwaite79/cpm-malloy-model/main/cpm_benchmarks.parquet') extend {
 
