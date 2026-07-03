@@ -1,5 +1,3 @@
-##! malloyVersion = "5"
-
 -- ai_tracker.malloy
 -- Semantic model over the ai_interactions table in Neon Postgres.
 -- Connection name "neon" is defined in malloy-config.json.
@@ -12,7 +10,7 @@
 --   correction_analysis   Drill into tasks that needed corrections (first_pass = false)
 --   raw_interactions      Full detail table (latest 200)
 
-source: interactions is connection("neon").table("ai_interactions") extend {
+source: interactions is neon.table("ai_interactions") extend {
 
   -- ── Measures ──────────────────────────────────────────────────────────────
 
