@@ -3,7 +3,7 @@
 
 -- ── AI Interactions (universal tracker) ─────────────────────────────────────
 
-source: interactions is neon.table("public.ai_interactions") extend {
+source: interactions is neon.table('public.ai_interactions') extend {
 
   measure:
     total_tasks       is count()

@@ -6,11 +6,14 @@
     },
     "neon": {
       "is": "postgres",
-      "host":         { "env": "NEON_HOST" },
-      "databaseName": { "env": "NEON_DATABASE" },
-      "username":     { "env": "NEON_USER" },
-      "password":     { "env": "NEON_PASSWORD" },
-      "port": 5432
+      "connectionString": { "env": "DATABASE_URL" }
+    }
+  },
+  "malloyyo": {
+    "cpm": {
+      "url":             "https://malloyyo-eehpbmwns-brathwaite.vercel.app",
+      "dataset":         "cpm_benchmarks",
+      "malloyyo_token":  { "env": "MALLOYYO_TOKEN" }
     }
   }
 }
