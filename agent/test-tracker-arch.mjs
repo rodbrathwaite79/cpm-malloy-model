@@ -231,8 +231,9 @@ console.log("\n┌─ Layer 4: Malloy Model Structure ────────�
 const malloySrc = fs.readFileSync(path.join(ROOT, "ai_tracker.malloy"), "utf8")
 
 test("T26 — Source connects to 'neon' connection", () => {
-  assertContains(malloySrc, 'connection("neon")')
-  assertContains(malloySrc, '"ai_interactions"')
+  // interactions source defined in index.malloy (merged from ai_tracker.malloy)
+  const indexSrc = fs.readFileSync(path.join(ROOT, "index.malloy"), "utf8")
+  assertContains(indexSrc, 'neon.table("ai_interactions")')
 })
 
 test("T27 — roi_by_provider view groups by provider and tool", () => {
