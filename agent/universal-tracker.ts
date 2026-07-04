@@ -20,9 +20,9 @@
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  *
  * Required env vars in Guild:
- *   LOG_API_URL       https://your-app.vercel.app/api/log-interaction
- *   LOG_API_KEY       matches Vercel LOG_API_KEY
- *   MALLOY_SOURCE_ID  (from Malloyyo: the source id for ai_tracker.malloy)
+ *   LOG_API_URL           https://cpm-vercel.vercel.app/api/log-interaction
+ *   INTERACTIONS_API_URL  https://cpm-vercel.vercel.app/api/interactions
+ *   LOG_API_KEY           matches Vercel LOG_API_KEY
  *
  * Include this file in any project:
  *   - Copy to <project>/agent/universal-tracker.ts
@@ -432,68 +432,78 @@ export default task(async (input: string, data: Record<string, unknown>) => {
 
   // ────────────────────────────────────────────────────────────────────────────
   // MODE D — DASHBOARD
-  // Fetch live ROI summary from Neon via the log endpoint stats query.
+  // Fetch live ROI summary from /api/interactions (Neon — always current).
+  // Falls back to LLM-generated summary if fetch is unavailable.
   // ────────────────────────────────────────────────────────────────────────────
   if (data.dashboard || input.toLowerCase().includes("dashboard") || input.toLowerCase().includes("roi")) {
-    const project = (data.project as string) ?? state.projectName ?? "default"
+    const project    = (data.project as string) ?? state.projectName ?? "default"
+    const apiUrl     = process.env.INTERACTIONS_API_URL
+    const apiKey     = process.env.LOG_API_KEY
+    let   liveData   = ""
 
-    // Use task.llm to generate the dashboard summary from a descriptive prompt
-    // (Malloy query results would come from the CPM Reports MCP in full deployment)
-    const dashboardPrompt = [
-      `You are displaying a live AI ROI dashboard for project: "${project}".`,
-      "",
-      "The data comes from the ai_interactions table in Neon Postgres via Malloy.",
-      "The user wants to see: total tasks, total hours, total value, total cost, ROI multiple,",
-      "first-pass percentage, tasks by provider, and a quality breakdown.",
-      "",
-      "Format as a clean markdown dashboard with sections:",
-      "1. Summary (ROI headline)",
-      "2. By Provider (table: provider | tasks | hours | value | cost | ROI | first-pass%)",
-      "3. Quality Analysis (first-pass rate, correction breakdown)",
-      "4. Trend note (if sessionCount > 5, note improving quality over time)",
-      "",
-      `Context: This tracker is in session ${state.sessionCount}, project "${project}".`,
-      "If no data is available yet, show the empty-state message with init instructions.",
-    ].join("\n")
+    if (apiUrl && apiKey) {
+      try {
+        const [summaryRes, providerRes] = await Promise.all([
+          fetch(`${apiUrl}?view=summary&project=${encodeURIComponent(project)}`,
+            { headers: { Authorization: `Bearer ${apiKey}` } }),
+          fetch(`${apiUrl}?view=roi_by_provider&project=${encodeURIComponent(project)}`,
+            { headers: { Authorization: `Bearer ${apiKey}` } }),
+        ])
+        if (summaryRes.ok && providerRes.ok) {
+          const { rows: [s] } = await summaryRes.json()
+          const { rows: providers } = await providerRes.json()
+          const provTable = providers.map((p: Record<string, unknown>) =>
+            `| ${p.provider} / ${p.tool} | ${p.total_tasks} | ${p.total_hours}h | $${p.total_value_usd} | $${p.total_cost_usd} | ${p.roi_multiple}× | ${p.first_pass_pct}% |`
+          ).join("\n")
+          liveData = [
+            `## 📊 AI ROI Dashboard — ${project}`,
+            `*Live from Neon · ${today} · ${s.total_tasks} interactions*`,
+            "",
+            `### Summary`,
+            `| Tasks | Hours | Value | Cost | ROI | First-pass |`,
+            `|-------|-------|-------|------|-----|------------|`,
+            `| ${s.total_tasks} | ${s.total_hours}h | $${s.total_value_usd} | $${s.total_cost_usd} | **${s.roi_multiple}×** | ${s.first_pass_pct}% |`,
+            "",
+            `### By Provider`,
+            `| Provider / Tool | Tasks | Hours | Value | Cost | ROI | First-pass |`,
+            `|-----------------|-------|-------|-------|------|-----|------------|`,
+            provTable,
+            "",
+            "Run MODE E to query `quality_by_task_type`, `value_trend`, or `raw`.",
+          ].join("\n")
+        }
+      } catch (_) {
+        // fetch blocked in Guild sandbox — fall through to LLM summary
+      }
+    }
 
-    const summary = await task.llm.generateText(dashboardPrompt)
+    if (liveData) {
+      await task.save({ ...state, lastRunDate: today })
+      return liveData
+    }
 
-    // In full deployment, replace the above with:
-    // const mcpResult = await task.callMcpTool("mcp__<malloy-id>__query", {
-    //   source: "ai_tracker",
-    //   query: "roi_by_provider",
-    //   filters: { project }
-    // })
-
+    // Fallback: LLM-generated summary (used when outbound fetch is unavailable)
+    const summary = await task.llm.generateText(
+      `You are displaying an AI ROI dashboard for project "${project}". ` +
+      `Format as markdown with a Summary section and a By Provider table. ` +
+      `Note that live data is unavailable (outbound HTTP blocked) and instruct ` +
+      `the user to set INTERACTIONS_API_URL env var and ensure outbound HTTP is enabled.`
+    )
     await task.save({ ...state, lastRunDate: today })
-
-    return [
-      `## 📊 AI ROI Dashboard — ${project}`,
-      `*Live data from Neon · Session ${state.sessionCount} · ${today}*`,
-      "",
-      summary,
-      "",
-      "---",
-      "**Malloy views available:** `roi_by_provider` · `quality_by_task_type` · `value_trend` · `by_project` · `correction_analysis`",
-      "Run MODE E to query any view directly.",
-    ].join("\n")
+    return summary
   }
 
   // ────────────────────────────────────────────────────────────────────────────
   // MODE E — QUERY
-  // Run a named Malloy view against ai_tracker.malloy
+  // Run a named analytics view against /api/interactions (live Neon data).
+  // Endpoint: GET INTERACTIONS_API_URL?view=<view>&project=<project>
+  // Auth: Bearer LOG_API_KEY
   // ────────────────────────────────────────────────────────────────────────────
   if (data.query) {
-    const viewName = data.query as string
-    const validViews = [
-      "roi_by_provider",
-      "quality_by_task_type",
-      "value_trend",
-      "by_project",
-      "correction_analysis",
-      "raw_interactions",
-      "summary",
-    ]
+    const viewName   = (data.query as string).toLowerCase()
+    const project    = (data.project as string) ?? state.projectName ?? null
+    const validViews = ["summary", "roi_by_provider", "quality_by_task_type", "value_trend", "raw"]
+
     if (!validViews.includes(viewName)) {
       return [
         `❌ Unknown view: "${viewName}"`,
@@ -503,23 +513,61 @@ export default task(async (input: string, data: Record<string, unknown>) => {
       ].join("\n")
     }
 
-    // In full deployment with Malloyyo MCP connected:
-    // const result = await task.callMcpTool("mcp__2ae5c6a3-...___query", {
-    //   source: "ai_tracker",
-    //   query: viewName,
-    // })
-    // return JSON.stringify(result, null, 2)
+    const apiUrl = process.env.INTERACTIONS_API_URL
+    const apiKey = process.env.LOG_API_KEY
 
-    return [
-      `📋 **Query: ${viewName}**`,
-      "",
-      "To run this directly, use the CPM Reports MCP connector:",
-      `  Source: ai_tracker`,
-      `  Query:  ${viewName}`,
-      "",
-      "Or via Malloyyo REST API:",
-      `  POST /api/query { source: "ai_tracker", query: "${viewName}" }`,
-    ].join("\n")
+    if (!apiUrl || !apiKey) {
+      return [
+        "❌ Missing env vars: INTERACTIONS_API_URL and LOG_API_KEY must be set in Guild.",
+        `  INTERACTIONS_API_URL = https://cpm-vercel.vercel.app/api/interactions`,
+      ].join("\n")
+    }
+
+    try {
+      const url = new URL(apiUrl)
+      url.searchParams.set("view", viewName)
+      if (project) url.searchParams.set("project", project)
+
+      const res = await fetch(url.toString(), {
+        headers: { Authorization: `Bearer ${apiKey}` },
+      })
+
+      if (!res.ok) {
+        throw new Error(`${res.status}: ${await res.text()}`)
+      }
+
+      const { rows, row_count } = await res.json() as { rows: Record<string, unknown>[], row_count: number }
+
+      if (row_count === 0) {
+        return `📋 **${viewName}** — no data for project "${project ?? "all"}"`
+      }
+
+      // Format as a markdown table
+      const cols   = Object.keys(rows[0])
+      const header = `| ${cols.join(" | ")} |`
+      const sep    = `| ${cols.map(() => "---").join(" | ")} |`
+      const body   = rows.map(r => `| ${cols.map(c => r[c] ?? "").join(" | ")} |`).join("\n")
+
+      return [
+        `📋 **${viewName}** — ${row_count} row${row_count !== 1 ? "s" : ""} (project: ${project ?? "all"})`,
+        "",
+        header,
+        sep,
+        body,
+      ].join("\n")
+
+    } catch (err) {
+      const msg = (err as Error).message
+      // Guild sandbox blocks outbound fetch — provide actionable fallback
+      return [
+        `❌ **Query failed:** ${msg}`,
+        "",
+        "Guild's agent sandbox currently blocks outbound HTTP. To run this query directly:",
+        `  curl -H 'Authorization: Bearer ${apiKey}' '${apiUrl}?view=${viewName}${project ? `&project=${project}` : ""}'`,
+        "",
+        "Ask Guild support to enable outbound HTTP access to: cpm-vercel.vercel.app",
+      ].join("\n")
+    }
   }
 
   // ────────────────────────────────────────────────────────────────────────────
