@@ -11,12 +11,12 @@ source: interactions is duckdb.table('https://raw.githubusercontent.com/rodbrath
     total_value_usd   is sum(value_usd)
     total_cost_usd    is sum(cost_usd)
     total_corrections is sum(corrections)
-    first_pass_pct    is round(avg(case when first_pass then 1.0 else 0.0 end) * 100, 1)
+    first_pass_pct    is round(avg(pick 1.0 when first_pass else 0.0) * 100, 1)
     roi_multiple      is round(sum(value_usd) / nullif(sum(cost_usd), 0), 0)
 
   dimension:
     month_year is concat(
-      lpad(month(created_at)::string, 2, '0'),
+      lpad!(month(created_at)::string, 2, '0'),
       '/', year(created_at)::string
     )
 
