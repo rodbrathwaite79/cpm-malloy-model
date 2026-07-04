@@ -16,8 +16,8 @@ source: interactions is duckdb.table('https://raw.githubusercontent.com/rodbrath
 
   dimension:
     month_year is concat(
-      lpad(cast(extract(month from created_at) as varchar), 2, '0'),
-      '/', cast(extract(year from created_at) as varchar)
+      lpad(month(created_at)::string, 2, '0'),
+      '/', year(created_at)::string
     )
 
   view: roi_by_provider is {
