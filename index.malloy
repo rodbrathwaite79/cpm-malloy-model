@@ -3,7 +3,7 @@
 
 -- ── AI Interactions (universal tracker) ─────────────────────────────────────
 
-source: interactions is duckdb.table('https://raw.githubusercontent.com/rodbrathwaite79/cpm-malloy-model/main/ai_interactions.csv') extend {
+source: interactions is neon.table("ai_interactions") extend {
 
   measure:
     total_tasks       is count()
