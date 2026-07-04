@@ -1,7 +1,49 @@
 -- CPM Benchmarks + AI Tracker Semantic Model
 -- Served via Malloyyo → MCP → Guild.ai Agent
 
-import "ai_tracker.malloy"
+-- ── AI Interactions (universal tracker) ─────────────────────────────────────
+
+source: interactions is duckdb.table('https://raw.githubusercontent.com/rodbrathwaite79/cpm-malloy-model/main/ai_interactions.csv') extend {
+
+  measure:
+    total_tasks       is count()
+    total_hours       is sum(hours_estimate)
+    total_value_usd   is sum(value_usd)
+    total_cost_usd    is sum(cost_usd)
+    total_corrections is sum(corrections)
+    first_pass_pct    is round(avg(case when first_pass then 1.0 else 0.0 end) * 100, 1)
+    roi_multiple      is round(sum(value_usd) / nullif(sum(cost_usd), 0), 0)
+
+  dimension:
+    month_year is concat(
+      lpad(cast(extract(month from created_at) as varchar), 2, '0'),
+      '/', cast(extract(year from created_at) as varchar)
+    )
+
+  view: roi_by_provider is {
+    group_by: provider, tool
+    aggregate: total_tasks, total_hours, total_value_usd, total_cost_usd, roi_multiple, first_pass_pct
+    order_by: total_value_usd desc
+  }
+
+  view: quality_by_task_type is {
+    group_by: task_type
+    aggregate: total_tasks, total_hours, total_value_usd, first_pass_pct, total_corrections
+    order_by: total_value_usd desc
+  }
+
+  view: value_trend is {
+    group_by: month_year
+    aggregate: total_tasks, total_value_usd, total_cost_usd, total_hours
+    order_by: month_year asc
+  }
+
+  view: summary is {
+    aggregate: total_tasks, total_hours, total_value_usd, total_cost_usd, roi_multiple, first_pass_pct
+  }
+}
+
+-- ── CPM Benchmarks ────────────────────────────────────────────────────────────
 
 source: cpm_benchmarks is duckdb.table('https://raw.githubusercontent.com/rodbrathwaite79/cpm-malloy-model/main/cpm_benchmarks.parquet') extend {
 
