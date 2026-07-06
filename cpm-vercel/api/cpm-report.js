@@ -206,7 +206,7 @@ async function extractCpmWithLlm(channelLabel, month, year, findings) {
   return null
 }
 
-// ── AI synthesis (Gemini 2.5 Flash, falls back to Claude if no Gemini key) ────
+// ── AI synthesis (Gemini 2.5 Flash, falls back to Claude Haiku on any failure) ─
 async function synthesizeInsights(rows, webFindings) {
   const { geminiKey, anthropicKey } = cfg()
   if (!geminiKey && !anthropicKey) return null
@@ -259,29 +259,39 @@ Rules:
 - Do NOT invent CPM numbers — every figure must come from the data above
 - Each insight must cite at least one URL from the research above`
 
+  // Inner helper for Anthropic fallback (DRY)
+  async function callAnthropic() {
+    if (!anthropicKey) return null
+    const res = await post("https://api.anthropic.com/v1/messages",
+      { "x-api-key": anthropicKey, "anthropic-version": "2023-06-01", "Content-Type": "application/json" },
+      { model: "claude-haiku-4-5-20251001", max_tokens: 2048, messages: [{ role: "user", content: prompt }] }
+    )
+    if (res.status !== 200) { console.warn("Anthropic synthesis error:", res.status, res.body.slice(0, 200)); return null }
+    const data = JSON.parse(res.body)
+    return { text: data.content?.[0]?.text ?? "", inputTokens: data.usage?.input_tokens ?? 0, outputTokens: data.usage?.output_tokens ?? 0 }
+  }
+
   try {
-    let text = "", inputTokens = 0, outputTokens = 0
+    let result = null
     if (geminiKey) {
-      const result = await callGemini(prompt, 2048, 50000)
-      if (!result) return null
-      text = result.text; inputTokens = result.inputTokens; outputTokens = result.outputTokens
+      result = await callGemini(prompt, 2048, 50000)
+      if (!result) {
+        console.warn("Gemini synthesis failed — falling back to Claude Haiku")
+        result = await callAnthropic()
+      }
     } else {
-      const res = await post("https://api.anthropic.com/v1/messages",
-        { "x-api-key": anthropicKey, "anthropic-version": "2023-06-01", "Content-Type": "application/json" },
-        { model: "claude-haiku-4-5-20251001", max_tokens: 2048, messages: [{ role: "user", content: prompt }] }
-      )
-      if (res.status !== 200) return null
-      const data = JSON.parse(res.body)
-      text = data.content?.[0]?.text ?? ""
-      inputTokens = data.usage?.input_tokens ?? 0; outputTokens = data.usage?.output_tokens ?? 0
+      result = await callAnthropic()
     }
+    if (!result) return null
+
+    const { text, inputTokens, outputTokens } = result
     const s = text.indexOf("{"), e = text.lastIndexOf("}")
-    if (s < 0 || e <= s) return null
+    if (s < 0 || e <= s) { console.warn("AI synthesis: no JSON found in response"); return null }
     const parsed = JSON.parse(text.slice(s, e + 1))
     parsed._inputTokens  = inputTokens
     parsed._outputTokens = outputTokens
     return parsed
-  } catch { return null }
+  } catch (e) { console.warn("synthesizeInsights error:", e.message); return null }
 }
 
 // ── GitHub CSV backup (belt-and-suspenders alongside Neon) ───────────────────
