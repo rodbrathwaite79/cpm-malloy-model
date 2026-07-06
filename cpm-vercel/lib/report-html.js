@@ -277,6 +277,8 @@ export function buildHtmlReport(rows, webFindings, aiInsights, verifiedNewData, 
   <div style="background:#0f172a;border-radius:8px;padding:18px;margin-bottom:20px;">
     <div style="color:#f1f5f9;font-size:14px;font-weight:700;margin-bottom:10px;">📊 AI Analysis</div>
     <p style="color:#cbd5e1;font-size:13px;line-height:1.6;margin:0 0 14px;">${aiInsights.summary ?? ""}</p>
+
+    ${(aiInsights.insights ?? []).length > 0 ? `<div style="color:#93c5fd;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">Key Insights</div>` : ""}
     ${(aiInsights.insights ?? []).map(i => {
       const srcLinks = (i.sources ?? [])
         .map(s => `<a href="${s.url}" style="color:#60a5fa;font-size:10px;text-decoration:none;">${s.title ?? s.url}</a>`)
@@ -288,6 +290,28 @@ export function buildHtmlReport(rows, webFindings, aiInsights, verifiedNewData, 
       ${srcLinks ? `<div style="margin-top:5px;">🔗 ${srcLinks}</div>` : ""}
     </div>`
     }).join("")}
+
+    ${(aiInsights.recommendations ?? []).length > 0 ? `
+    <div style="color:#fbbf24;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-top:16px;margin-bottom:8px;">💡 Recommendations</div>
+    ${(aiInsights.recommendations ?? []).map(r => {
+      const urgencyColor = r.urgency === "immediate" ? "#ef4444" : r.urgency === "this-quarter" ? "#f59e0b" : "#64748b"
+      const urgencyLabel = r.urgency === "immediate" ? "Immediate" : r.urgency === "this-quarter" ? "This Quarter" : "Monitor"
+      return `
+    <div style="border-left:3px solid #f59e0b;padding-left:10px;margin-bottom:12px;">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <div style="color:#fcd34d;font-weight:600;font-size:12px;">${r.title}</div>
+        <span style="background:${urgencyColor};color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;text-transform:uppercase;">${urgencyLabel}</span>
+      </div>
+      <div style="color:#94a3b8;font-size:12px;margin-top:3px;line-height:1.5;">${r.body}</div>
+    </div>`
+    }).join("")}` : ""}
+
+    ${(aiInsights.next_steps ?? []).length > 0 ? `
+    <div style="color:#34d399;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-top:16px;margin-bottom:8px;">✅ Next Steps</div>
+    <ol style="margin:0;padding-left:18px;">
+      ${(aiInsights.next_steps ?? []).map(step => `
+      <li style="color:#94a3b8;font-size:12px;line-height:1.6;margin-bottom:6px;">${step}</li>`).join("")}
+    </ol>` : ""}
   </div>` : ""
 
   return `<!DOCTYPE html>
@@ -322,6 +346,9 @@ export function buildHtmlReport(rows, webFindings, aiInsights, verifiedNewData, 
 }
 
 // ── Interactive dashboard (attached to email) ─────────────────────────────────
+// Full interactive dashboard: sidebar filters, Chart.js trend chart, sortable
+// table — PLUS the preview-style AI analysis panel (insights, recommendations,
+// next steps) rendered above the chart when aiInsights data is available.
 export function buildInteractiveDashboard(rows, runDate, aiInsights = null) {
   const enriched = computeChanges(rows)
   const dataJson = JSON.stringify(enriched.map(r => ({
@@ -343,21 +370,45 @@ export function buildInteractiveDashboard(rows, runDate, aiInsights = null) {
     `<label class="cb-label"><input type="checkbox" class="mo-cb" value="${m}" checked><span>${name.slice(0,3)}</span></label>`
   ).join("")
 
+  // AI insights panel — preview-style with dark border, source links, urgency badges
   const insightsHtml = aiInsights ? `
-  <div class="insights-panel">
-    <div class="insights-title">📊 AI Analysis</div>
-    <div class="insights-summary">${aiInsights.summary ?? ""}</div>
+  <div class="ai-panel">
+    <div class="ai-title">AI Analysis</div>
+    <p class="ai-summary">${aiInsights.summary ?? ""}</p>
+
+    ${(aiInsights.insights ?? []).length > 0 ? `<div class="sub-label sl-blue">Key Insights</div>` : ""}
     ${(aiInsights.insights ?? []).map(i => {
       const srcLinks = (i.sources ?? [])
         .map(s => `<a href="${s.url}" target="_blank" rel="noopener" class="src-link">${s.title ?? s.url}</a>`)
-        .join(" · ")
+        .join(" &nbsp;·&nbsp; ")
       return `
     <div class="insight-item">
-      <div class="insight-title">${i.title}</div>
+      <div class="insight-ttl">${i.title}</div>
       <div class="insight-body">${i.body}</div>
-      ${srcLinks ? `<div class="insight-sources">🔗 ${srcLinks}</div>` : ""}
+      ${srcLinks ? `<div class="insight-src">🔗 ${srcLinks}</div>` : ""}
     </div>`
     }).join("")}
+
+    ${(aiInsights.recommendations ?? []).length > 0 ? `
+    <div class="sub-label sl-amber" style="margin-top:16px">Recommendations</div>
+    ${(aiInsights.recommendations ?? []).map(r => {
+      const urgencyBg    = r.urgency === "immediate" ? "#ef4444" : r.urgency === "this-quarter" ? "#f59e0b" : "#475569"
+      const urgencyLabel = r.urgency === "immediate" ? "Immediate" : r.urgency === "this-quarter" ? "This Quarter" : "Monitor"
+      return `
+    <div class="rec-item">
+      <div class="rec-hdr">
+        <div class="rec-ttl">${r.title}</div>
+        <span class="badge" style="background:${urgencyBg}">${urgencyLabel}</span>
+      </div>
+      <div class="rec-body">${r.body}</div>
+    </div>`
+    }).join("")}` : ""}
+
+    ${(aiInsights.next_steps ?? []).length > 0 ? `
+    <div class="sub-label sl-green" style="margin-top:16px">Next Steps</div>
+    <ol class="next-ol">
+      ${(aiInsights.next_steps ?? []).map(step => `<li>${step}</li>`).join("")}
+    </ol>` : ""}
   </div>` : ""
 
   return `<!DOCTYPE html>
@@ -399,15 +450,25 @@ export function buildInteractiveDashboard(rows, runDate, aiInsights = null) {
   .chart-section{background:#1e293b;border-radius:10px;padding:20px;margin-bottom:20px}
   .chart-title{font-size:13px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:1px;margin-bottom:14px}
   .chart-wrap{position:relative;height:280px}
-  .insights-panel{background:#0f172a;border-radius:10px;padding:20px;margin-bottom:20px}
-  .insights-title{font-size:14px;font-weight:700;margin-bottom:10px}
-  .insights-summary{color:#cbd5e1;font-size:13px;line-height:1.6;margin-bottom:14px}
+  /* AI analysis panel — matches preview exactly */
+  .ai-panel{background:#0a0f1e;border:1px solid #1e3a5f;border-radius:8px;padding:18px;margin-bottom:20px}
+  .ai-title{color:#f1f5f9;font-size:14px;font-weight:700;margin-bottom:10px}
+  .ai-summary{color:#cbd5e1;font-size:13px;line-height:1.6;margin:0 0 16px}
+  .sub-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
+  .sl-blue{color:#93c5fd}.sl-amber{color:#fbbf24}.sl-green{color:#34d399}
   .insight-item{border-left:3px solid #3b82f6;padding-left:10px;margin-bottom:12px}
-  .insight-title{color:#93c5fd;font-weight:600;font-size:13px}
+  .insight-ttl{color:#93c5fd;font-weight:600;font-size:12px}
   .insight-body{color:#94a3b8;font-size:12px;margin-top:3px;line-height:1.5}
-  .insight-sources{margin-top:5px;font-size:11px}
+  .insight-src{margin-top:5px;font-size:10px;color:#60a5fa}
   .src-link{color:#60a5fa;text-decoration:none}
   .src-link:hover{text-decoration:underline}
+  .rec-item{border-left:3px solid #f59e0b;padding-left:10px;margin-bottom:12px}
+  .rec-hdr{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .rec-ttl{color:#fcd34d;font-weight:600;font-size:12px}
+  .badge{font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;text-transform:uppercase;color:#fff}
+  .rec-body{color:#94a3b8;font-size:12px;margin-top:3px;line-height:1.5}
+  .next-ol{margin:0;padding-left:18px}
+  .next-ol li{color:#94a3b8;font-size:12px;line-height:1.6;margin-bottom:6px}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 </head>
