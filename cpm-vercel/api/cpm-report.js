@@ -157,22 +157,7 @@ function extractCpmWithRegex(channelLabel, findings) {
   return { cpm: Math.round(median.cpm * 100) / 100, sources: [...new Set(preferred.map(c => c.source))].slice(0, 3), note: "Extracted via regex from web sources" }
 }
 
-// ── Gemini helper ─────────────────────────────────────────────────────────────
-async function callGemini(prompt, maxTokens = 1024, timeoutMs = 20000) {
-  const { geminiKey } = cfg()
-  if (!geminiKey) return null
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`
-  try {
-    const res = await request("POST", url, { "Content-Type": "application/json" }, {
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.5, maxOutputTokens: maxTokens }
-    }, timeoutMs)
-    if (res.status !== 200) { console.warn("Gemini error:", res.status, res.body.slice(0, 200)); return null }
-    const data = JSON.parse(res.body)
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ""
-    return { text, inputTokens: data.usageMetadata?.promptTokenCount ?? 0, outputTokens: data.usageMetadata?.candidatesTokenCount ?? 0 }
-  } catch (e) { console.warn("Gemini call failed:", e.message); return null }
-}
+// ── (Gemini helper removed — replaced by rule-based synthesis) ────────────────
 
 async function extractCpmWithLlm(channelLabel, month, year, findings) {
   if (findings.length === 0) return null
@@ -206,92 +191,154 @@ async function extractCpmWithLlm(channelLabel, month, year, findings) {
   return null
 }
 
-// ── AI synthesis (Gemini 2.5 Flash, falls back to Claude Haiku on any failure) ─
-async function synthesizeInsights(rows, webFindings) {
-  const { geminiKey, anthropicKey } = cfg()
-  if (!geminiKey && !anthropicKey) return null
+// ── Rule-based insight synthesis (no paid API — pure math on real data) ────────
+function synthesizeInsights(rows) {
+  if (!rows || rows.length < 2) return null
 
-  const channelData = {}
+  const fmt$  = v => `$${Number(v).toFixed(2)}`
+  const fmtPct = v => (v >= 0 ? "+" : "") + Number(v).toFixed(1) + "%"
+
+  // Group and sort by channel
+  const byChannel = {}
   for (const r of rows) {
-    if (!channelData[r.channel]) channelData[r.channel] = []
-    channelData[r.channel].push({ year: r.year, month: r.month, avg: r.avg_cpm })
+    if (!byChannel[r.channel]) byChannel[r.channel] = []
+    byChannel[r.channel].push({ year: Number(r.year), month: Number(r.month), cpm: parseFloat(r.avg_cpm), sort: Number(r.year) * 100 + Number(r.month) })
   }
-  const dataSummary = Object.entries(channelData)
-    .map(([ch, pts]) => `${CHANNEL_LABELS[ch] ?? ch}: ${pts.map(p => `${MONTH_NAMES[p.month]} ${p.year} $${p.avg.toFixed(2)}`).join(", ")}`)
-    .join("\n")
-  const webSummary = webFindings.slice(0, 8).map((f, i) => `[${i+1}] ${f.title}\nURL: ${f.url}\nEXCERPT: ${f.excerpt}`).join("\n\n---\n\n")
+  for (const pts of Object.values(byChannel)) pts.sort((a, b) => a.sort - b.sort)
 
-  const prompt = `You are a senior media buying strategist. Analyze this CPM benchmark data and produce actionable intelligence for a media planner.
+  // Find latest period in data
+  const latestSort = Math.max(...rows.map(r => Number(r.year) * 100 + Number(r.month)))
+  const latestYear  = Math.floor(latestSort / 100)
+  const latestMonth = latestSort % 100
 
-HISTORICAL CPM DATA (monthly, by channel):
-${dataSummary}
-
-RECENT MARKET RESEARCH:
-${webSummary}
-
-Return ONLY valid JSON with this exact structure:
-{
-  "summary": "2-3 sentences covering the most important trend, which channels are moving and why, and the overall market direction. Be specific — cite channel names and percentage changes.",
-  "insights": [
-    {
-      "title": "Insight headline (5-8 words)",
-      "body": "2-3 sentences explaining what the data shows. Reference specific CPM numbers and MoM or YoY changes.",
-      "sources": [{"title": "source title", "url": "source url"}]
+  // Per-channel stats
+  const stats = {}
+  for (const [ch, pts] of Object.entries(byChannel)) {
+    const latest   = pts[pts.length - 1]
+    const prev1    = pts[pts.length - 2]
+    const prevYr   = pts.find(p => p.sort === (latestYear - 1) * 100 + latestMonth)
+    const last3avg = pts.slice(-3).reduce((s, p) => s + p.cpm, 0) / Math.min(pts.length, 3)
+    const momPct   = prev1 ? (latest.cpm - prev1.cpm) / prev1.cpm * 100 : null
+    const yoyPct   = prevYr ? (latest.cpm - prevYr.cpm) / prevYr.cpm * 100 : null
+    stats[ch] = {
+      label:    CHANNEL_LABELS[ch] ?? ch,
+      cpm:      latest.cpm,
+      prevCpm:  prev1?.cpm ?? null,
+      momPct,
+      yoyPct,
+      avg3:     last3avg,
+      aboveAvg: latest.cpm > last3avg,
     }
-  ],
-  "recommendations": [
-    {
-      "title": "Action headline (5-8 words)",
-      "body": "Specific recommendation: which channel, what budget shift, why now, and what outcome to expect. Tie directly to the data.",
-      "urgency": "immediate"
-    }
-  ],
-  "next_steps": [
-    "Specific, timed action a media planner can execute this week or this quarter. Include channel, direction, and timeframe."
+  }
+
+  const all = Object.values(stats)
+  const withMom = all.filter(s => s.momPct !== null).sort((a, b) => b.momPct - a.momPct)
+  const byPrice = [...all].sort((a, b) => b.cpm - a.cpm)
+  const highest = byPrice[0], lowest = byPrice[byPrice.length - 1]
+  const bigUp   = withMom[0], bigDown = withMom[withMom.length - 1]
+  const mn      = MONTH_NAMES[latestMonth]
+
+  // ── Summary ──────────────────────────────────────────────────────────────────
+  const risingLabels = withMom.filter(s => s.momPct > 0).map(s => s.label)
+  const fallingLabels = withMom.filter(s => s.momPct < 0).map(s => s.label)
+  let summary = `In ${mn} ${latestYear}, ${highest.label} leads all channels at ${fmt$(highest.cpm)} CPM`
+  if (bigUp?.momPct > 0)  summary += `, with ${bigUp.label} posting the largest MoM gain at ${fmtPct(bigUp.momPct)}`
+  if (bigDown?.momPct < 0) summary += `. ${bigDown.label} saw the steepest decline at ${fmtPct(bigDown.momPct)} to ${fmt$(bigDown.cpm)}`
+  summary += `. ${fallingLabels.length ? fallingLabels.join(" and ") + " present buy-side opportunities this period." : "All channels are trending upward — locking in rates is advisable."}`
+
+  // ── Insights (3) ─────────────────────────────────────────────────────────────
+  const insights = []
+
+  // Insight 1: biggest mover up
+  if (bigUp) {
+    const yoyStr = bigUp.yoyPct !== null ? ` (${fmtPct(bigUp.yoyPct)} YoY)` : ""
+    insights.push({
+      title: `${bigUp.label} CPM up ${fmtPct(bigUp.momPct)} MoM`,
+      body: `${bigUp.label} reached ${fmt$(bigUp.cpm)} in ${mn} ${latestYear}, up from ${fmt$(bigUp.prevCpm)} last month${yoyStr}. At ${bigUp.aboveAvg ? "above" : "near"} its 3-month average of ${fmt$(bigUp.avg3)}, this signals ${bigUp.aboveAvg ? "sustained upward pressure — budget for rising costs or explore alternatives." : "a potential short-term spike likely to moderate."}`,
+      sources: []
+    })
+  }
+
+  // Insight 2: biggest mover down (or second-biggest up if all rising)
+  if (bigDown && bigDown.momPct < 0) {
+    const yoyStr = bigDown.yoyPct !== null ? ` (${fmtPct(bigDown.yoyPct)} YoY)` : ""
+    insights.push({
+      title: `${bigDown.label} softening — ${fmtPct(bigDown.momPct)} MoM`,
+      body: `${bigDown.label} CPMs fell to ${fmt$(bigDown.cpm)}${yoyStr}. The current rate sits ${bigDown.aboveAvg ? "above" : "below"} its 3-month average of ${fmt$(bigDown.avg3)}, indicating ${bigDown.aboveAvg ? "softening from elevated levels — favorable for incremental buys." : "below-trend pricing — an attractive entry window for buyers."}`,
+      sources: []
+    })
+  } else {
+    const second = withMom[1]
+    if (second) insights.push({
+      title: `${second.label} also rising at ${fmtPct(second.momPct)} MoM`,
+      body: `${second.label} climbed to ${fmt$(second.cpm)} — ${second.aboveAvg ? "above" : "near"} its 3-month average of ${fmt$(second.avg3)}. Broad-channel CPM inflation signals tightening supply across the market.`,
+      sources: []
+    })
+  }
+
+  // Insight 3: premium spread
+  const spread = highest.cpm - lowest.cpm
+  const premiumPct = Math.round((spread / lowest.cpm) * 100)
+  insights.push({
+    title: `${highest.label}–${lowest.label} spread: ${fmt$(spread)}`,
+    body: `${highest.label} (${fmt$(highest.cpm)}) commands a ${premiumPct}% premium over ${lowest.label} (${fmt$(lowest.cpm)}). ${premiumPct > 200 ? "This historically wide gap warrants a channel mix review — the lower-CPM channel may deliver similar audiences at a fraction of the cost." : "The spread is within normal range, but mix efficiency gains are still available by weighting toward lower-CPM channels."}`,
+    sources: []
+  })
+
+  // ── Recommendations (3) ──────────────────────────────────────────────────────
+  const recommendations = []
+
+  if (bigDown && bigDown.momPct < -3) {
+    recommendations.push({
+      title: `Increase ${bigDown.label} spend now`,
+      body: `With ${bigDown.label} CPMs down ${fmtPct(bigDown.momPct)} to ${fmt$(bigDown.cpm)}, this is a favorable window to increase impression volume at lower cost. Shift 10–15% of budget from higher-CPM channels before rates recover.`,
+      urgency: "immediate"
+    })
+  } else if (bigDown && bigDown.momPct < 0) {
+    recommendations.push({
+      title: `Test incremental ${bigDown.label} budget`,
+      body: `${bigDown.label} is softening (${fmtPct(bigDown.momPct)} MoM to ${fmt$(bigDown.cpm)}). A modest 5–10% budget shift captures efficiency gains while the rate is favorable, with limited downside.`,
+      urgency: "this-quarter"
+    })
+  } else {
+    recommendations.push({
+      title: `Lock in rates before further increases`,
+      body: `All channels are trending up. Consider forward commitments or preferred deals, especially in ${highest.label} at ${fmt$(highest.cpm)} — the highest-risk channel for further CPM inflation.`,
+      urgency: "this-quarter"
+    })
+  }
+
+  if (bigUp && bigUp.momPct > 5) {
+    recommendations.push({
+      title: `Cap ${bigUp.label} CPM exposure`,
+      body: `${bigUp.label} rose ${fmtPct(bigUp.momPct)} MoM to ${fmt$(bigUp.cpm)}. Set a ceiling alert at ${fmt$(bigUp.cpm * 1.1)} — if breached, reallocate that budget to more efficient channels. Avoid over-indexing here without a direct response metric to justify the premium.`,
+      urgency: bigUp.momPct > 10 ? "immediate" : "this-quarter"
+    })
+  } else {
+    recommendations.push({
+      title: `Monitor ${highest.label} efficiency vs. alternatives`,
+      body: `${highest.label} remains the highest-CPM channel at ${fmt$(highest.cpm)}. Audit whether ROAS or conversion metrics justify this premium relative to ${lowest.label} at ${fmt$(lowest.cpm)}.`,
+      urgency: "monitor"
+    })
+  }
+
+  const belowAvg = all.filter(s => !s.aboveAvg).map(s => s.label)
+  recommendations.push({
+    title: "Rebalance mix toward below-average channels",
+    body: `${belowAvg.length ? belowAvg.join(" and ") + " are" : lowest.label + " is"} trading below their 3-month average. Shifting weight here improves blended CPM efficiency without sacrificing total reach.`,
+    urgency: "this-quarter"
+  })
+
+  // ── Next steps (3) ───────────────────────────────────────────────────────────
+  const opportunityChannel = (bigDown && bigDown.momPct < 0) ? bigDown.label : lowest.label
+  const watchChannel = bigUp?.label ?? highest.label
+  const next_steps = [
+    `This week: Pull ${opportunityChannel} line items and identify the lowest-performing placements — reallocate that budget toward channels with stronger momentum while the rate differential holds.`,
+    `This month: Set CPM alerts — trigger a portfolio review if ${watchChannel} exceeds ${fmt$(( bigUp?.cpm ?? highest.cpm) * 1.15)} or ${opportunityChannel} falls below ${fmt$(( bigDown?.cpm ?? lowest.cpm) * 0.85)} to stay ahead of rate swings.`,
+    `This quarter: Run a channel mix A/B test shifting 10–15% of ${watchChannel} budget to ${opportunityChannel} — target a 5–8% improvement in blended CPM while maintaining reach targets.`
   ]
-}
 
-Rules:
-- Return exactly 3 insights, 3 recommendations, 3 next_steps
-- Recommendations must be directly actionable by a media buyer (channel shifts, budget reallocation, timing changes)
-- Next steps must name a specific action with a timeframe (e.g. "Before Q3 begins, shift 10% of Social budget to Video/CTV")
-- Urgency is one of: "immediate", "this-quarter", "monitor"
-- Do NOT invent CPM numbers — every figure must come from the data above
-- Each insight must cite at least one URL from the research above`
-
-  // Inner helper for Anthropic fallback (DRY)
-  async function callAnthropic() {
-    if (!anthropicKey) return null
-    const res = await post("https://api.anthropic.com/v1/messages",
-      { "x-api-key": anthropicKey, "anthropic-version": "2023-06-01", "Content-Type": "application/json" },
-      { model: "claude-haiku-4-5-20251001", max_tokens: 2048, messages: [{ role: "user", content: prompt }] }
-    )
-    if (res.status !== 200) { console.warn("Anthropic synthesis error:", res.status, res.body.slice(0, 200)); return null }
-    const data = JSON.parse(res.body)
-    return { text: data.content?.[0]?.text ?? "", inputTokens: data.usage?.input_tokens ?? 0, outputTokens: data.usage?.output_tokens ?? 0 }
-  }
-
-  try {
-    let result = null
-    if (geminiKey) {
-      result = await callGemini(prompt, 2048, 50000)
-      if (!result) {
-        console.warn("Gemini synthesis failed — falling back to Claude Haiku")
-        result = await callAnthropic()
-      }
-    } else {
-      result = await callAnthropic()
-    }
-    if (!result) return null
-
-    const { text, inputTokens, outputTokens } = result
-    const s = text.indexOf("{"), e = text.lastIndexOf("}")
-    if (s < 0 || e <= s) { console.warn("AI synthesis: no JSON found in response"); return null }
-    const parsed = JSON.parse(text.slice(s, e + 1))
-    parsed._inputTokens  = inputTokens
-    parsed._outputTokens = outputTokens
-    return parsed
-  } catch (e) { console.warn("synthesizeInsights error:", e.message); return null }
+  return { summary, insights, recommendations, next_steps, _inputTokens: 0, _outputTokens: 0 }
 }
 
 // ── GitHub CSV backup (belt-and-suspenders alongside Neon) ───────────────────
@@ -467,17 +514,12 @@ export default async function handler(req, res) {
   }
   console.log(`      Found ${webFindings.length} web sources`)
 
-  // ── Step 4b: AI synthesis ─────────────────────────────────────────────────
-  let aiInsights = null, synthIn = 0, synthOut = 0
-  if (cfg().geminiKey || cfg().anthropicKey) {
-    console.log("\n[4b] AI synthesis via", cfg().geminiKey ? "Gemini 2.5 Flash" : "Claude Haiku", "…")
-    aiInsights = await synthesizeInsights(historicalRows, webFindings)
-    if (aiInsights) {
-      synthIn  = aiInsights._inputTokens  ?? 0
-      synthOut = aiInsights._outputTokens ?? 0
-      console.log(`     AI insights generated (${synthIn} in / ${synthOut} out tokens)`)
-    }
-  }
+  // ── Step 4b: Rule-based insight synthesis (no paid API) ──────────────────────
+  console.log("\n[4b] Synthesizing insights from data (rule-based, no API cost)…")
+  const aiInsights = synthesizeInsights(historicalRows)
+  const synthIn = 0, synthOut = 0
+  if (aiInsights) console.log("     ✅ Insights generated from", historicalRows.length, "data points")
+  else console.warn("     ⚠️  Not enough data for insights (need ≥ 2 rows)")
 
   // ── Step 5: Build report and send ─────────────────────────────────────────
   console.log("\n[5/5] Generating report and sending email…")
