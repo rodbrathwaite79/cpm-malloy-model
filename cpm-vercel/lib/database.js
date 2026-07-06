@@ -164,6 +164,8 @@ export async function initAiInteractionsSchema() {
                         CHECK (task_type IN ('code','document','analysis','testing','research','design')),
       description     TEXT           NOT NULL,
       hours_estimate  NUMERIC(5,2)   NOT NULL CHECK (hours_estimate > 0),
+      hours_source    TEXT           NOT NULL DEFAULT 'estimated'
+                        CHECK (hours_source IN ('measured','estimated')),
       value_usd       NUMERIC(10,2)  NOT NULL,
       first_pass      BOOLEAN        NOT NULL DEFAULT true,
       corrections     INTEGER        NOT NULL DEFAULT 0,
@@ -175,6 +177,12 @@ export async function initAiInteractionsSchema() {
       session_id      TEXT           DEFAULT '',
       created_at      TIMESTAMPTZ    DEFAULT NOW()
     )
+  `
+  // Migrate existing tables — safe to run repeatedly (ADD COLUMN IF NOT EXISTS)
+  await sql`
+    ALTER TABLE ai_interactions
+      ADD COLUMN IF NOT EXISTS hours_source TEXT NOT NULL DEFAULT 'estimated'
+        CHECK (hours_source IN ('measured','estimated'))
   `
   // Indexes for common query patterns
   await sql`CREATE INDEX IF NOT EXISTS idx_ai_project    ON ai_interactions(project)`
@@ -189,6 +197,7 @@ export async function insertAiInteraction({
   taskType,
   description,
   hoursEstimate,
+  hoursSource = "estimated",
   valueUsd,
   firstPass = true,
   corrections = 0,
@@ -201,11 +210,11 @@ export async function insertAiInteraction({
   const sql = db()
   const rows = await sql`
     INSERT INTO ai_interactions
-      (project, provider, tool, task_type, description, hours_estimate, value_usd,
-       first_pass, corrections, output, notes, cost_model, cost_usd, session_id)
+      (project, provider, tool, task_type, description, hours_estimate, hours_source,
+       value_usd, first_pass, corrections, output, notes, cost_model, cost_usd, session_id)
     VALUES (
       ${project}, ${provider}, ${tool}, ${taskType}, ${description},
-      ${hoursEstimate}, ${valueUsd}, ${firstPass}, ${corrections},
+      ${hoursEstimate}, ${hoursSource}, ${valueUsd}, ${firstPass}, ${corrections},
       ${output}, ${notes}, ${costModel}, ${costUsd}, ${sessionId}
     )
     RETURNING id

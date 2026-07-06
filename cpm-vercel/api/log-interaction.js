@@ -34,8 +34,9 @@
 
 import { insertAiInteraction, initAiInteractionsSchema } from "../lib/database.js"
 
-const VALID_TASK_TYPES = new Set(["code", "document", "analysis", "testing", "research", "design"])
+const VALID_TASK_TYPES  = new Set(["code", "document", "analysis", "testing", "research", "design"])
 const VALID_COST_MODELS = new Set(["per-token", "subscription", "free"])
+const VALID_HOURS_SRC   = new Set(["measured", "estimated"])
 const REQUIRED_FIELDS   = ["provider", "tool", "task_type", "description", "hours_estimate", "value_usd"]
 
 let schemaReady = false
@@ -95,6 +96,13 @@ export default async function handler(req, res) {
     })
   }
 
+  const hoursSource = body.hours_source ? String(body.hours_source) : "estimated"
+  if (!VALID_HOURS_SRC.has(hoursSource)) {
+    return res.status(400).json({
+      error: `Invalid hours_source "${hoursSource}". Must be one of: ${[...VALID_HOURS_SRC].join(", ")}`,
+    })
+  }
+
   const corrections = Number(body.corrections ?? 0)
   if (isNaN(corrections) || corrections < 0 || !Number.isInteger(corrections)) {
     return res.status(400).json({ error: "corrections must be a non-negative integer" })
@@ -115,6 +123,7 @@ export default async function handler(req, res) {
       taskType,
       description:   String(body.description),
       hoursEstimate,
+      hoursSource,
       valueUsd,
       firstPass:     body.first_pass !== undefined ? Boolean(body.first_pass) : true,
       corrections,

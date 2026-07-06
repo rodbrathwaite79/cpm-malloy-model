@@ -232,7 +232,7 @@ async function postToLogEndpoint(payload: object): Promise<{ id: number }> {
     const err = await response.text()
     throw new Error(`Log endpoint returned ${response.status}: ${err}`)
   }
-  return response.json()
+  return response.json() as Promise<{ id: number }>
 }
 
 // ── ROI helpers ───────────────────────────────────────────────────────────────
@@ -324,9 +324,19 @@ export default task(async (input: string, data: Record<string, unknown>) => {
   if (data.log || data.interaction) {
     const d = (data.log ?? data.interaction) as Record<string, unknown>
 
-    // Validate required fields
-    const missing = (["provider", "tool", "taskType", "description", "hoursEstimate"] as const)
-      .filter(f => d[f] === undefined || d[f] === null || d[f] === "")
+    // startedAt (Unix ms) enables real wall-clock timing — hoursEstimate becomes optional
+    const startedAt     = d.startedAt !== undefined && d.startedAt !== null
+      ? Number(d.startedAt)
+      : null
+    const hasStartedAt  = startedAt !== null && !isNaN(startedAt) && startedAt > 0
+
+    // Validate required fields (hoursEstimate optional when startedAt provided)
+    const requiredFields = ["provider", "tool", "taskType", "description"] as const
+    const hoursRequired  = !hasStartedAt ? ["hoursEstimate" as const] : []
+    const missing = ([...requiredFields, ...hoursRequired])
+      .filter(f => (d as Record<string, unknown>)[f] === undefined
+                || (d as Record<string, unknown>)[f] === null
+                || (d as Record<string, unknown>)[f] === "")
     if (missing.length > 0) {
       return [
         `❌ Missing required fields: ${missing.join(", ")}`,
@@ -337,13 +347,22 @@ export default task(async (input: string, data: Record<string, unknown>) => {
         "  taskType      code | document | analysis | testing | research | design",
         "  description   What was accomplished",
         "  hoursEstimate Estimated human hours replaced (float > 0)",
+        "               — OR —",
+        "  startedAt     Unix ms timestamp from Date.now() at task start",
+        "                (real wall-clock hours computed automatically)",
         "",
         "Optional: valueUsd (auto-calculated if omitted), firstPass, corrections, costModel, costUsd, output, notes",
       ].join("\n")
     }
 
-    const taskType      = d.taskType as TaskType
-    const hoursEstimate = parseFloat(d.hoursEstimate as string)
+    const taskType = d.taskType as TaskType
+
+    // Compute hours: real measured time if startedAt provided, otherwise use estimate
+    const hoursEstimate: number = hasStartedAt
+      ? Math.max(0.01, parseFloat(((Date.now() - startedAt!) / 3600000).toFixed(4)))
+      : parseFloat(d.hoursEstimate as string)
+    const hoursSource: "measured" | "estimated" = hasStartedAt ? "measured" : "estimated"
+
     const valueUsd      = d.valueUsd !== undefined
       ? parseFloat(d.valueUsd as string)
       : calcValue(taskType, hoursEstimate)
@@ -361,6 +380,7 @@ export default task(async (input: string, data: Record<string, unknown>) => {
       task_type:      taskType,
       description:    d.description as string,
       hours_estimate: hoursEstimate,
+      hours_source:   hoursSource,
       value_usd:      valueUsd,
       first_pass:     firstPass,
       corrections,
@@ -385,13 +405,15 @@ export default task(async (input: string, data: Record<string, unknown>) => {
       `✅ **Logged interaction #${id}**`,
       `  Provider: ${payload.provider} / ${payload.tool}`,
       `  Type:     ${taskType}`,
-      `  Hours:    ${hoursEstimate}h`,
+      `  Hours:    ${hoursEstimate}h  (${hoursSource === "measured" ? "⏱ real wall-clock" : "~ estimated"})`,
       `  Value:    $${valueUsd.toFixed(2)}`,
       `  Cost:     ${costUsd !== null ? `$${costUsd.toFixed(4)}` : "N/A (subscription/free)"}`,
       `  ROI:      ${formatRoi(valueUsd, costUsd)}`,
       `  Quality:  ${firstPass ? "✓ First pass" : `⚠ ${corrections} correction(s)`}`,
       "",
-      "Tip: Use log-ai.mjs from any terminal for faster logging.",
+      hoursSource === "estimated"
+        ? "💡 Pass `startedAt: Date.now()` at task start to capture real wall-clock time."
+        : "Tip: Use log-ai.mjs from any terminal for faster logging.",
     ].join("\n")
   }
 
@@ -450,8 +472,8 @@ export default task(async (input: string, data: Record<string, unknown>) => {
             { headers: { Authorization: `Bearer ${apiKey}` } }),
         ])
         if (summaryRes.ok && providerRes.ok) {
-          const { rows: [s] } = await summaryRes.json()
-          const { rows: providers } = await providerRes.json()
+          const { rows: [s] } = await summaryRes.json() as { rows: Record<string, unknown>[] }
+          const { rows: providers } = await providerRes.json() as { rows: Record<string, unknown>[] }
           const provTable = providers.map((p: Record<string, unknown>) =>
             `| ${p.provider} / ${p.tool} | ${p.total_tasks} | ${p.total_hours}h | $${p.total_value_usd} | $${p.total_cost_usd} | ${p.roi_multiple}× | ${p.first_pass_pct}% |`
           ).join("\n")
@@ -611,7 +633,7 @@ export default task(async (input: string, data: Record<string, unknown>) => {
     "",
     "**Modes:**",
     "  • **A — Init**        `{ init: true, project: 'my-project' }` — seed backfill + create Neon schema",
-    "  • **B — Log**         `{ log: { provider, tool, taskType, description, hoursEstimate, ... } }` — record interaction",
+    "  • **B — Log**         `{ log: { provider, tool, taskType, description, startedAt: Date.now(), ... } }` — record interaction (pass startedAt for real timing)",
     "  • **C — Correction**  `{ correction: { id: N, corrections: 2, notes: '...' } }` — mark corrections",
     "  • **D — Dashboard**   `{ dashboard: true }` or say 'show dashboard' — live ROI summary",
     "  • **E — Query**       `{ query: 'roi_by_provider' }` — named Malloy view",
