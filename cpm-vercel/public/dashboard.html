@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CPM Agent — Live Dashboard</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      min-height: 100vh;
+      padding: 32px 24px;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 32px;
+    }
+
+    header h1 {
+      font-size: 22px;
+      font-weight: 700;
+      color: #f8fafc;
+    }
+
+    header h1 span { color: #6366f1; }
+
+    .refresh-btn {
+      background: #1e293b;
+      border: 1px solid #334155;
+      color: #94a3b8;
+      padding: 8px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: all 0.15s;
+    }
+    .refresh-btn:hover { background: #334155; color: #e2e8f0; }
+
+    .last-updated {
+      font-size: 12px;
+      color: #64748b;
+      margin-top: 4px;
+      text-align: right;
+    }
+
+    /* Section headers */
+    .section-title {
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #64748b;
+      margin-bottom: 12px;
+      margin-top: 32px;
+    }
+
+    /* Stat cards */
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px;
+    }
+
+    .card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 20px;
+    }
+
+    .card .label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: #64748b;
+      margin-bottom: 8px;
+    }
+
+    .card .value {
+      font-size: 28px;
+      font-weight: 700;
+      color: #f8fafc;
+      line-height: 1;
+    }
+
+    .card .sub {
+      font-size: 12px;
+      color: #94a3b8;
+      margin-top: 6px;
+    }
+
+    .card.green  { border-color: #22c55e33; }
+    .card.green .value { color: #22c55e; }
+    .card.blue   { border-color: #6366f133; }
+    .card.blue .value { color: #818cf8; }
+    .card.amber  { border-color: #f59e0b33; }
+    .card.amber .value { color: #fbbf24; }
+    .card.purple { border-color: #a855f733; }
+    .card.purple .value { color: #c084fc; }
+
+    /* Tables */
+    .table-wrap {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    th {
+      background: #0f172a;
+      color: #64748b;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      padding: 10px 16px;
+      text-align: left;
+    }
+
+    td {
+      padding: 11px 16px;
+      border-top: 1px solid #1e293b;
+      color: #cbd5e1;
+    }
+
+    tr:hover td { background: #0f172a44; }
+
+    .pill {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .pill-green  { background: #22c55e22; color: #22c55e; }
+    .pill-blue   { background: #6366f122; color: #818cf8; }
+    .pill-amber  { background: #f59e0b22; color: #fbbf24; }
+    .pill-red    { background: #ef444422; color: #f87171; }
+    .pill-gray   { background: #64748b22; color: #94a3b8; }
+
+    /* Two-column layout */
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    @media (max-width: 768px) { .two-col { grid-template-columns: 1fr; } }
+
+    /* Loading / error states */
+    .loading {
+      color: #64748b;
+      font-size: 14px;
+      padding: 24px;
+      text-align: center;
+    }
+
+    .error-msg {
+      background: #7f1d1d33;
+      border: 1px solid #ef444433;
+      color: #f87171;
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+    }
+
+    .dot {
+      display: inline-block;
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      margin-right: 6px;
+    }
+    .dot-green  { background: #22c55e; }
+    .dot-red    { background: #ef4444; }
+    .dot-amber  { background: #f59e0b; }
+
+    /* Clickable rows */
+    tr.clickable { cursor: pointer; }
+    tr.clickable:hover td { background: #1e3a5f44; }
+
+    /* Modal */
+    .modal-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-backdrop.open { display: flex; }
+    .modal {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 14px;
+      padding: 28px;
+      max-width: 480px;
+      width: 90%;
+      position: relative;
+    }
+    .modal h3 { font-size: 16px; font-weight: 700; margin-bottom: 18px; color: #f8fafc; }
+    .modal-close {
+      position: absolute;
+      top: 14px; right: 18px;
+      background: none;
+      border: none;
+      color: #64748b;
+      font-size: 20px;
+      cursor: pointer;
+      line-height: 1;
+    }
+    .modal-close:hover { color: #e2e8f0; }
+    .breakdown-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      padding: 8px 0;
+      border-bottom: 1px solid #334155;
+      font-size: 13px;
+    }
+    .breakdown-row:last-child { border-bottom: none; }
+    .breakdown-label { color: #94a3b8; }
+    .breakdown-value { color: #f8fafc; font-weight: 600; }
+    .calc-box {
+      background: #0f172a;
+      border-radius: 8px;
+      padding: 14px 16px;
+      margin: 16px 0;
+      font-size: 13px;
+      color: #cbd5e1;
+      line-height: 1.7;
+    }
+    .calc-box .eq { color: #22c55e; font-weight: 700; font-size: 15px; }
+    .value-info {
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 10px;
+      padding: 18px 20px;
+      margin-top: 32px;
+      font-size: 12px;
+      color: #94a3b8;
+      line-height: 1.7;
+    }
+    .value-info h4 { font-size: 13px; font-weight: 700; color: #cbd5e1; margin-bottom: 10px; }
+    .rate-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px,1fr)); gap: 8px; margin-top: 10px; }
+    .rate-chip {
+      background: #1e293b;
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-size: 11px;
+    }
+    .rate-chip .rt { color: #818cf8; font-weight: 700; }
+    .rate-chip .rn { color: #64748b; margin-top: 2px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>CPM Agent — <span>Live Dashboard</span></h1>
+  </div>
+  <div>
+    <button class="refresh-btn" onclick="loadAll()">↻ Refresh</button>
+    <div class="last-updated" id="lastUpdated">Loading…</div>
+  </div>
+</header>
+
+<!-- ── CPM PIPELINE ───────────────────────────────────────────────────────── -->
+<div class="section-title">CPM Pipeline — Vercel Cron</div>
+<div class="cards" id="cpmCards">
+  <div class="loading">Fetching…</div>
+</div>
+
+<div style="margin-top:16px" class="section-title">Recent Cron Runs</div>
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Outcome</th>
+        <th>Data Points</th>
+        <th>Source</th>
+      </tr>
+    </thead>
+    <tbody id="cpmRunsBody">
+      <tr><td colspan="4" class="loading">Fetching…</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ── AI TRACKER ─────────────────────────────────────────────────────────── -->
+<div class="section-title" style="margin-top:40px">AI Interaction Tracker — ROI</div>
+<div class="cards" id="roiCards">
+  <div class="loading">Fetching…</div>
+</div>
+
+<div style="margin-top:16px" class="two-col">
+  <div>
+    <div class="section-title">By Provider</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Provider</th>
+            <th>Tasks</th>
+            <th>Value</th>
+            <th>ROI</th>
+            <th>1st Pass</th>
+          </tr>
+        </thead>
+        <tbody id="providerBody">
+          <tr><td colspan="5" class="loading">Fetching…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div>
+    <div class="section-title">Recent Interactions</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Type</th>
+            <th>Tool</th>
+            <th>Hours</th>
+            <th>Value</th>
+            <th>Quality</th>
+          </tr>
+        </thead>
+        <tbody id="recentBody">
+          <tr><td colspan="5" class="loading">Fetching…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ── HOURS BREAKDOWN MODAL ──────────────────────────────────────────────── -->
+<div class="modal-backdrop" id="modalBackdrop" onclick="closeModal(event)">
+  <div class="modal" id="modalBox">
+    <button class="modal-close" onclick="closeModalDirect()">✕</button>
+    <h3 id="modalTitle">Hours Breakdown</h3>
+    <div id="modalContent"></div>
+  </div>
+</div>
+
+<!-- ── VALUE DEFINITION ───────────────────────────────────────────────────── -->
+<div class="value-info">
+  <h4>📐 How is Value calculated?</h4>
+  Value is the estimated dollar amount of work an AI tool completed — based on <strong>how many hours it saved</strong> multiplied by the <strong>market hourly rate</strong> for that type of work. It answers: <em>"What would a skilled human contractor have charged for this?"</em>
+  <div class="rate-grid">
+    <div class="rate-chip"><div class="rt">$175 / hr</div><div class="rn">Analysis</div></div>
+    <div class="rate-chip"><div class="rt">$150 / hr</div><div class="rn">Code</div></div>
+    <div class="rate-chip"><div class="rt">$125 / hr</div><div class="rn">Research</div></div>
+    <div class="rate-chip"><div class="rt">$100 / hr</div><div class="rn">Testing</div></div>
+    <div class="rate-chip"><div class="rt">$80 / hr</div><div class="rn">Document</div></div>
+  </div>
+  <div style="margin-top:12px;color:#64748b">
+    <strong>ROI Multiple</strong> = Value ÷ API Cost &nbsp;·&nbsp;
+    <strong>Hours</strong> are estimated from scope (lines changed for code commits; session length for Cowork interactions)
+  </div>
+</div>
+
+<script>
+  const CPM_BASE = ""  // served from same origin — relative paths, no CORS
+
+  // ── helpers ─────────────────────────────────────────────────────────────────
+
+  function fmt(n, prefix = "", decimals = 0) {
+    if (n === null || n === undefined) return "—"
+    return prefix + Number(n).toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
+  }
+
+  function outcomeClass(o) {
+    if (o === "autonomous") return "pill-green"
+    if (o === "hitl")       return "pill-amber"
+    if (o === "error")      return "pill-red"
+    return "pill-gray"
+  }
+
+  function dot(o) {
+    if (o === "autonomous") return '<span class="dot dot-green"></span>'
+    if (o === "hitl")       return '<span class="dot dot-amber"></span>'
+    return '<span class="dot dot-red"></span>'
+  }
+
+  function fmtDate(iso) {
+    return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+  }
+
+  function roi(value, cost) {
+    if (!cost || cost <= 0) return "∞"
+    return Math.round(value / cost).toLocaleString() + "×"
+  }
+
+  // ── CPM pipeline ─────────────────────────────────────────────────────────────
+
+  async function loadCpm() {
+    try {
+      const r    = await fetch(`${CPM_BASE}/api/metrics`)
+      if (!r.ok) {
+        const txt = await r.text().catch(() => "")
+        throw new Error(`HTTP ${r.status}${txt ? ": " + txt.slice(0,120) : ""}`)
+      }
+      const data = await r.json()
+      const s    = data.stats
+
+      document.getElementById("cpmCards").innerHTML = `
+        <div class="card green">
+          <div class="label">Total Runs</div>
+          <div class="value">${s.totalRuns}</div>
+          <div class="sub">${s.autonomousRuns} autonomous</div>
+        </div>
+        <div class="card blue">
+          <div class="label">Autonomous Rate</div>
+          <div class="value">${s.totalRuns > 0 ? Math.round(s.autonomousRuns / s.totalRuns * 100) : 0}%</div>
+          <div class="sub">${s.hitlRuns} HITL · ${s.errorRuns} errors</div>
+        </div>
+        <div class="card amber">
+          <div class="label">HITL Events</div>
+          <div class="value">${s.hitlRuns}</div>
+          <div class="sub">Human-in-the-loop</div>
+        </div>
+        <div class="card">
+          <div class="label">Status</div>
+          <div class="value" style="font-size:18px">${dot("autonomous")} Live</div>
+          <div class="sub">Cron: daily 8am EST</div>
+        </div>
+      `
+
+      const rows = (data.runHistory ?? []).slice(0, 8)
+      document.getElementById("cpmRunsBody").innerHTML = rows.map(r => `
+        <tr>
+          <td>${fmtDate(r.run_date)}</td>
+          <td><span class="pill ${outcomeClass(r.outcome)}">${r.outcome}</span></td>
+          <td>${r.data_points_found ?? 0}</td>
+          <td><span class="pill pill-gray">${r.source}</span></td>
+        </tr>
+      `).join("") || '<tr><td colspan="4" class="loading">No runs yet</td></tr>'
+
+    } catch (e) {
+      document.getElementById("cpmCards").innerHTML = `<div class="error-msg">⚠ Could not load CPM data: ${e.message}</div>`
+    }
+  }
+
+  // ── AI tracker ───────────────────────────────────────────────────────────────
+
+  async function loadTracker() {
+    try {
+      const r    = await fetch(`${CPM_BASE}/api/tracker-stats?project=cpm-agent`)
+      const data = await r.json()
+      const t    = data.totals
+
+      document.getElementById("roiCards").innerHTML = `
+        <div class="card green">
+          <div class="label">Total Value</div>
+          <div class="value">${fmt(t.value_usd, "$")}</div>
+          <div class="sub">${fmt(t.hours, "", 1)} hours automated</div>
+        </div>
+        <div class="card purple">
+          <div class="label">ROI Multiple</div>
+          <div class="value">${t.roi_multiple ? t.roi_multiple.toLocaleString() + "×" : "∞"}</div>
+          <div class="sub">Value / API cost</div>
+        </div>
+        <div class="card blue">
+          <div class="label">Interactions</div>
+          <div class="value">${t.tasks}</div>
+          <div class="sub">${fmt(data.first_pass_pct, "", 0)}% first-pass</div>
+        </div>
+        <div class="card amber">
+          <div class="label">API Cost</div>
+          <div class="value">${fmt(t.cost_usd, "$", 2)}</div>
+          <div class="sub">${t.corrections} corrections total</div>
+        </div>
+      `
+
+      document.getElementById("providerBody").innerHTML = (data.by_provider ?? []).map(p => `
+        <tr>
+          <td><strong>${p.provider}</strong><br><span style="color:#64748b;font-size:11px">${p.tool ?? ""}</span></td>
+          <td>${p.total_tasks}</td>
+          <td>${fmt(p.total_value_usd, "$")}</td>
+          <td style="color:#c084fc">${roi(p.total_value_usd, p.total_cost_usd)}</td>
+          <td>${fmt(p.first_pass_pct, "", 0)}%</td>
+        </tr>
+      `).join("") || '<tr><td colspan="5" class="loading">No data yet</td></tr>'
+
+      const recent = data.recent ?? []
+      window._recentData = recent
+      document.getElementById("recentBody").innerHTML = recent.map((r, i) => `
+        <tr class="clickable" onclick="showBreakdown(${i})" title="Click to see hours breakdown">
+          <td><span class="pill pill-blue">${r.task_type}</span></td>
+          <td>${r.tool}</td>
+          <td style="color:#818cf8;font-weight:600">${r.hours_estimate}h</td>
+          <td>${fmt(r.value_usd, "$")}</td>
+          <td>${r.first_pass
+            ? '<span class="pill pill-green">✓ 1st pass</span>'
+            : `<span class="pill pill-amber">${r.corrections} fix${r.corrections !== 1 ? "es" : ""}</span>`
+          }</td>
+        </tr>
+      `).join("") || '<tr><td colspan="5" class="loading">No interactions yet</td></tr>'
+
+    } catch (e) {
+      document.getElementById("roiCards").innerHTML = `<div class="error-msg">⚠ Could not load tracker data: ${e.message}</div>`
+    }
+  }
+
+  // ── Hourly rates by task type ─────────────────────────────────────────────
+  const RATES = { analysis: 175, code: 150, research: 125, testing: 100, document: 80 }
+
+  function hoursLabel(hours) {
+    const h = parseFloat(hours)
+    if (h <= 0.25) return "≤ 25 lines changed (0.25h)"
+    if (h <= 0.5)  return "25–75 lines changed (0.5h)"
+    if (h <= 1.0)  return "75–200 lines changed (1.0h)"
+    if (h <= 2.0)  return "200–400 lines changed (2.0h)"
+    if (h <= 3.0)  return "400+ lines changed (3.0h)"
+    return `${h}h (manually estimated)`
+  }
+
+  function showBreakdown(idx) {
+    const r = (window._recentData ?? [])[idx]
+    if (!r) return
+    const hours = parseFloat(r.hours_estimate)
+    const rate  = RATES[r.task_type] ?? 150
+    const value = parseFloat(r.value_usd)
+    const cost  = parseFloat(r.cost_usd) || 0
+    const roid  = cost > 0 ? Math.round(value / cost) : null
+
+    document.getElementById("modalTitle").textContent =
+      `${r.task_type.charAt(0).toUpperCase() + r.task_type.slice(1)} · ${r.tool}`
+
+    document.getElementById("modalContent").innerHTML = `
+      <div class="breakdown-row">
+        <span class="breakdown-label">Description</span>
+        <span class="breakdown-value" style="max-width:260px;text-align:right;font-size:12px">${r.description || "—"}</span>
+      </div>
+      <div class="breakdown-row">
+        <span class="breakdown-label">Task type</span>
+        <span class="breakdown-value">${r.task_type} → $${rate}/hr market rate</span>
+      </div>
+      <div class="breakdown-row">
+        <span class="breakdown-label">Hours basis</span>
+        <span class="breakdown-value" style="text-align:right;font-size:12px">${hoursLabel(hours)}</span>
+      </div>
+      <div class="calc-box">
+        <div>${hours}h &nbsp;×&nbsp; $${rate}/hr &nbsp;= &nbsp;<span class="eq">$${value.toLocaleString()}</span> value</div>
+        ${cost > 0 ? `<div style="margin-top:6px;color:#94a3b8">API cost: $${cost.toFixed(4)} &nbsp;→&nbsp; <span style="color:#c084fc">${roid ? roid.toLocaleString() + '×' : '∞'} ROI</span></div>` : ""}
+      </div>
+      ${r.notes ? `<div class="breakdown-row"><span class="breakdown-label">Notes</span><span class="breakdown-value" style="font-size:12px;text-align:right;max-width:260px">${r.notes}</span></div>` : ""}
+      <div class="breakdown-row">
+        <span class="breakdown-label">Quality</span>
+        <span class="breakdown-value">${r.first_pass ? "✓ First pass (no corrections)" : `${r.corrections} correction${r.corrections !== 1 ? "s" : ""}`}</span>
+      </div>
+      <div class="breakdown-row">
+        <span class="breakdown-label">Date</span>
+        <span class="breakdown-value">${new Date(r.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span>
+      </div>
+    `
+    document.getElementById("modalBackdrop").classList.add("open")
+  }
+
+  function closeModal(e) {
+    if (e.target === document.getElementById("modalBackdrop")) closeModalDirect()
+  }
+
+  function closeModalDirect() {
+    document.getElementById("modalBackdrop").classList.remove("open")
+  }
+
+  document.addEventListener("keydown", e => { if (e.key === "Escape") closeModalDirect() })
+
+  // ── load all ─────────────────────────────────────────────────────────────────
+
+  async function loadAll() {
+    document.getElementById("lastUpdated").textContent = "Refreshing…"
+    await Promise.all([loadCpm(), loadTracker()])
+    document.getElementById("lastUpdated").textContent =
+      "Updated " + new Date().toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
+  }
+
+  loadAll()
+</script>
+</body>
+</html>
