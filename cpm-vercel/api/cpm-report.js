@@ -43,7 +43,7 @@ const CSV_HEADER   = "year,month,month_name,channel,channel_label,cpm,source_not
 let schemaReady = false
 
 // ── HTTP helper ───────────────────────────────────────────────────────────────
-function request(method, url, headers = {}, body = null) {
+function request(method, url, headers = {}, body = null, timeoutMs = 20000) {
   return new Promise((resolve, reject) => {
     const parsed  = new URL(url)
     const lib     = parsed.protocol === "https:" ? https : http
@@ -65,7 +65,7 @@ function request(method, url, headers = {}, body = null) {
       }))
     })
     req.on("error", reject)
-    req.setTimeout(20000, () => req.destroy(new Error("Timeout")))
+    req.setTimeout(timeoutMs, () => req.destroy(new Error(`Timeout after ${timeoutMs}ms`)))
     if (bodyBuf) req.write(bodyBuf)
     req.end()
   })
@@ -158,15 +158,15 @@ function extractCpmWithRegex(channelLabel, findings) {
 }
 
 // ── Gemini helper ─────────────────────────────────────────────────────────────
-async function callGemini(prompt, maxTokens = 1024) {
+async function callGemini(prompt, maxTokens = 1024, timeoutMs = 20000) {
   const { geminiKey } = cfg()
   if (!geminiKey) return null
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`
   try {
-    const res = await post(url, { "Content-Type": "application/json" }, {
+    const res = await request("POST", url, { "Content-Type": "application/json" }, {
       contents: [{ role: "user", parts: [{ text: prompt }] }],
       generationConfig: { temperature: 0.5, maxOutputTokens: maxTokens }
-    })
+    }, timeoutMs)
     if (res.status !== 200) { console.warn("Gemini error:", res.status, res.body.slice(0, 200)); return null }
     const data = JSON.parse(res.body)
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ""
@@ -262,7 +262,7 @@ Rules:
   try {
     let text = "", inputTokens = 0, outputTokens = 0
     if (geminiKey) {
-      const result = await callGemini(prompt, 2048)
+      const result = await callGemini(prompt, 2048, 50000)
       if (!result) return null
       text = result.text; inputTokens = result.inputTokens; outputTokens = result.outputTokens
     } else {

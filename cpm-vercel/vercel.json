@@ -7,7 +7,7 @@
   ],
   "functions": {
     "api/cpm-report.js": {
-      "maxDuration": 60
+      "maxDuration": 120
     },
     "api/metrics.js": {
       "maxDuration": 10
