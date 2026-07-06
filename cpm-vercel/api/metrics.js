@@ -12,28 +12,14 @@
  *   { runDate, source, outcome, inputTokens, outputTokens, dataPointsFound }
  */
 
-import { initSchema, getRunStats, getRecentRuns, insertRun } from "../lib/database.js"
-
-let schemaReady = false
+import { getRunStats, getRecentRuns, insertRun } from "../lib/database.js"
 
 export default async function handler(req, res) {
-  // Always send CORS headers so the dashboard (opened as a local file) can read the response
+  // CORS — allows dashboard to load from file:// or any origin
   res.setHeader("Access-Control-Allow-Origin",  "*")
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization")
   if (req.method === "OPTIONS") return res.status(204).end()
-
-  // Ensure schema exists — non-fatal: if tables are already there this is a no-op;
-  // if it fails we still attempt the queries (they may succeed anyway)
-  if (!schemaReady) {
-    try {
-      await initSchema()
-      schemaReady = true
-    } catch (e) {
-      console.error("initSchema warning:", e.message)
-      // Don't 500 here — try the queries anyway; tables may already exist
-    }
-  }
 
   // ── GET — public read of recent runs and aggregate stats ─────────────────
   if (req.method === "GET") {
