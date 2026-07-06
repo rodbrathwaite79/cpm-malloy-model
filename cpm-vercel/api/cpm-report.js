@@ -82,6 +82,7 @@ function cfg() {
     emailTo:      process.env.EMAIL_TO       ?? "rod.brathwaite@gmail.com",
     emailCc:      (process.env.EMAIL_CC ?? "").split(",").map(s => s.trim()).filter(Boolean),
     anthropicKey: process.env.ANTHROPIC_API_KEY ?? "",
+    geminiKey:    process.env.GEMINI_API_KEY    ?? "",
     forceUpdate:  process.env.FORCE_UPDATE === "true",
   }
 }
@@ -156,26 +157,46 @@ function extractCpmWithRegex(channelLabel, findings) {
   return { cpm: Math.round(median.cpm * 100) / 100, sources: [...new Set(preferred.map(c => c.source))].slice(0, 3), note: "Extracted via regex from web sources" }
 }
 
+// ── Gemini helper ─────────────────────────────────────────────────────────────
+async function callGemini(prompt, maxTokens = 1024) {
+  const { geminiKey } = cfg()
+  if (!geminiKey) return null
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`
+  try {
+    const res = await post(url, { "Content-Type": "application/json" }, {
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      generationConfig: { temperature: 0.5, maxOutputTokens: maxTokens }
+    })
+    if (res.status !== 200) { console.warn("Gemini error:", res.status, res.body.slice(0, 200)); return null }
+    const data = JSON.parse(res.body)
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text ?? ""
+    return { text, inputTokens: data.usageMetadata?.promptTokenCount ?? 0, outputTokens: data.usageMetadata?.candidatesTokenCount ?? 0 }
+  } catch (e) { console.warn("Gemini call failed:", e.message); return null }
+}
+
 async function extractCpmWithLlm(channelLabel, month, year, findings) {
   if (findings.length === 0) return null
-  const { anthropicKey } = cfg()
-  if (anthropicKey) {
+  const { geminiKey, anthropicKey } = cfg()
+  if (geminiKey || anthropicKey) {
     const context = findings.map(f => `SOURCE: ${f.title} (${f.url})\nEXCERPT: ${f.excerpt}${f.text ? "\nFULL TEXT: " + f.text.slice(0, 1500) : ""}`).join("\n\n---\n\n")
     const prompt  = `Extract the verified CPM for ${channelLabel} advertising in ${MONTH_NAMES[month]} ${year}.\n\nSOURCES:\n${context}\n\nReturn ONLY valid JSON: {"cpm": 12.50, "sources": ["Title 1"], "note": "brief quote"} OR {"cpm": null, "reason": "why not found"}\n\nRules: only accept explicit dollar figures from ${CREDIBLE_SOURCES.join(", ")}. Do NOT invent numbers.`
     try {
-      const res = await post("https://api.anthropic.com/v1/messages",
-        { "x-api-key": anthropicKey, "anthropic-version": "2023-06-01", "Content-Type": "application/json" },
-        { model: "claude-haiku-4-5-20251001", max_tokens: 256, messages: [{ role: "user", content: prompt }] }
-      )
-      if (res.status === 200) {
-        const data = JSON.parse(res.body)
-        const text = data.content?.[0]?.text ?? ""
-        const s = text.indexOf("{"), e = text.lastIndexOf("}")
-        if (s >= 0 && e > s) {
-          const parsed = JSON.parse(text.slice(s, e + 1))
-          if (parsed.cpm && typeof parsed.cpm === "number" && parsed.cpm > 0 && parsed.cpm < 500) {
-            return { cpm: Math.round(parsed.cpm * 100) / 100, sources: parsed.sources ?? [], note: parsed.note ?? "" }
-          }
+      let text = ""
+      if (geminiKey) {
+        const result = await callGemini(prompt, 256)
+        text = result?.text ?? ""
+      } else {
+        const res = await post("https://api.anthropic.com/v1/messages",
+          { "x-api-key": anthropicKey, "anthropic-version": "2023-06-01", "Content-Type": "application/json" },
+          { model: "claude-haiku-4-5-20251001", max_tokens: 256, messages: [{ role: "user", content: prompt }] }
+        )
+        if (res.status === 200) text = JSON.parse(res.body).content?.[0]?.text ?? ""
+      }
+      const s = text.indexOf("{"), e = text.lastIndexOf("}")
+      if (s >= 0 && e > s) {
+        const parsed = JSON.parse(text.slice(s, e + 1))
+        if (parsed.cpm && typeof parsed.cpm === "number" && parsed.cpm > 0 && parsed.cpm < 500) {
+          return { cpm: Math.round(parsed.cpm * 100) / 100, sources: parsed.sources ?? [], note: parsed.note ?? "" }
         }
       }
     } catch (e) { console.warn("LLM extraction failed:", e.message) }
@@ -185,10 +206,10 @@ async function extractCpmWithLlm(channelLabel, month, year, findings) {
   return null
 }
 
-// ── Anthropic synthesis ───────────────────────────────────────────────────────
+// ── AI synthesis (Gemini 2.5 Flash, falls back to Claude if no Gemini key) ────
 async function synthesizeInsights(rows, webFindings) {
-  const { anthropicKey } = cfg()
-  if (!anthropicKey) return null
+  const { geminiKey, anthropicKey } = cfg()
+  if (!geminiKey && !anthropicKey) return null
 
   const channelData = {}
   for (const r of rows) {
@@ -200,21 +221,65 @@ async function synthesizeInsights(rows, webFindings) {
     .join("\n")
   const webSummary = webFindings.slice(0, 8).map((f, i) => `[${i+1}] ${f.title}\nURL: ${f.url}\nEXCERPT: ${f.excerpt}`).join("\n\n---\n\n")
 
-  const prompt = `You are a senior media analyst. Write a brief executive summary and 3 key insights for this CPM benchmark report.\n\nHISTORICAL DATA:\n${dataSummary}\n\nRECENT WEB RESEARCH:\n${webSummary}\n\nReturn ONLY valid JSON:\n{"summary": "...", "insights": [{"title": "...", "body": "...", "sources": [{"title": "...", "url": "..."}]}]}\n\nRules: Do NOT invent CPM numbers. Each insight MUST cite at least one URL above. Return exactly 3 insights.`
+  const prompt = `You are a senior media buying strategist. Analyze this CPM benchmark data and produce actionable intelligence for a media planner.
+
+HISTORICAL CPM DATA (monthly, by channel):
+${dataSummary}
+
+RECENT MARKET RESEARCH:
+${webSummary}
+
+Return ONLY valid JSON with this exact structure:
+{
+  "summary": "2-3 sentences covering the most important trend, which channels are moving and why, and the overall market direction. Be specific — cite channel names and percentage changes.",
+  "insights": [
+    {
+      "title": "Insight headline (5-8 words)",
+      "body": "2-3 sentences explaining what the data shows. Reference specific CPM numbers and MoM or YoY changes.",
+      "sources": [{"title": "source title", "url": "source url"}]
+    }
+  ],
+  "recommendations": [
+    {
+      "title": "Action headline (5-8 words)",
+      "body": "Specific recommendation: which channel, what budget shift, why now, and what outcome to expect. Tie directly to the data.",
+      "urgency": "immediate"
+    }
+  ],
+  "next_steps": [
+    "Specific, timed action a media planner can execute this week or this quarter. Include channel, direction, and timeframe."
+  ]
+}
+
+Rules:
+- Return exactly 3 insights, 3 recommendations, 3 next_steps
+- Recommendations must be directly actionable by a media buyer (channel shifts, budget reallocation, timing changes)
+- Next steps must name a specific action with a timeframe (e.g. "Before Q3 begins, shift 10% of Social budget to Video/CTV")
+- Urgency is one of: "immediate", "this-quarter", "monitor"
+- Do NOT invent CPM numbers — every figure must come from the data above
+- Each insight must cite at least one URL from the research above`
 
   try {
-    const res = await post("https://api.anthropic.com/v1/messages",
-      { "x-api-key": anthropicKey, "anthropic-version": "2023-06-01", "Content-Type": "application/json" },
-      { model: "claude-haiku-4-5-20251001", max_tokens: 1024, messages: [{ role: "user", content: prompt }] }
-    )
-    if (res.status !== 200) return null
-    const data   = JSON.parse(res.body)
-    const text   = data.content?.[0]?.text ?? ""
+    let text = "", inputTokens = 0, outputTokens = 0
+    if (geminiKey) {
+      const result = await callGemini(prompt, 2048)
+      if (!result) return null
+      text = result.text; inputTokens = result.inputTokens; outputTokens = result.outputTokens
+    } else {
+      const res = await post("https://api.anthropic.com/v1/messages",
+        { "x-api-key": anthropicKey, "anthropic-version": "2023-06-01", "Content-Type": "application/json" },
+        { model: "claude-haiku-4-5-20251001", max_tokens: 2048, messages: [{ role: "user", content: prompt }] }
+      )
+      if (res.status !== 200) return null
+      const data = JSON.parse(res.body)
+      text = data.content?.[0]?.text ?? ""
+      inputTokens = data.usage?.input_tokens ?? 0; outputTokens = data.usage?.output_tokens ?? 0
+    }
     const s = text.indexOf("{"), e = text.lastIndexOf("}")
     if (s < 0 || e <= s) return null
     const parsed = JSON.parse(text.slice(s, e + 1))
-    parsed._inputTokens  = data.usage?.input_tokens  ?? 0
-    parsed._outputTokens = data.usage?.output_tokens ?? 0
+    parsed._inputTokens  = inputTokens
+    parsed._outputTokens = outputTokens
     return parsed
   } catch { return null }
 }
@@ -394,8 +459,8 @@ export default async function handler(req, res) {
 
   // ── Step 4b: AI synthesis ─────────────────────────────────────────────────
   let aiInsights = null, synthIn = 0, synthOut = 0
-  if (cfg().anthropicKey) {
-    console.log("\n[4b] AI synthesis via Claude…")
+  if (cfg().geminiKey || cfg().anthropicKey) {
+    console.log("\n[4b] AI synthesis via", cfg().geminiKey ? "Gemini 2.5 Flash" : "Claude Haiku", "…")
     aiInsights = await synthesizeInsights(historicalRows, webFindings)
     if (aiInsights) {
       synthIn  = aiInsights._inputTokens  ?? 0
@@ -427,7 +492,7 @@ export default async function handler(req, res) {
   const dashBase64 = Buffer.from(dashHtml, "utf-8").toString("base64")
   const attachments = [{ filename: "CPM-Dashboard.html", content: dashBase64 }]
 
-  const html    = buildHtmlReport(allRows, webFindings, aiInsights, verifiedNewData, runDate, metricsSection, !!cfg().anthropicKey)
+  const html    = buildHtmlReport(allRows, webFindings, aiInsights, verifiedNewData, runDate, metricsSection, !!(cfg().geminiKey || cfg().anthropicKey))
   const subject = `📊 CPM Month-over-Month Report — ${runDate}`
 
   await sendEmail(subject, html, attachments)
