@@ -45,7 +45,7 @@ source: interactions is neon.table('public.ai_interactions') extend {
 
 -- ── CPM Benchmarks ────────────────────────────────────────────────────────────
 
-source: cpm_benchmarks is duckdb.table('https://raw.githubusercontent.com/rodbrathwaite79/cpm-malloy-model/main/cpm_benchmarks.parquet') extend {
+source: cpm_benchmarks is neon.table('public.cpm_benchmarks') extend {
 
   -- Computed dimensions only — existing columns (channel, year, month, etc.)
   -- are already accessible from the table and do not need to be redeclared.

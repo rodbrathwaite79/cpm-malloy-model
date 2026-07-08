@@ -59,6 +59,8 @@ const GITHUB_REPO  = "cpm-malloy-model"
 const UPDATES_PATH = "cpm_monthly_updates.csv"
 const CSV_HEADER   = "year,month,month_name,channel,channel_label,cpm,source_note,report_date\n"
 
+// ── Constants — keep in sync with ../cpm-vercel/lib/report-html.js ────────────
+// Not imported directly: this script runs as a standalone copy outside the repo.
 const CHANNEL_LABELS = {
   paid_social:           "Paid Social",
   paid_search:           "Paid Search",
