@@ -82,7 +82,6 @@ function cfg() {
     emailTo:      process.env.EMAIL_TO       ?? "rod.brathwaite@gmail.com",
     emailCc:      (process.env.EMAIL_CC ?? "").split(",").map(s => s.trim()).filter(Boolean),
     anthropicKey: process.env.ANTHROPIC_API_KEY ?? "",
-    geminiKey:    process.env.GEMINI_API_KEY    ?? "",
     forceUpdate:  process.env.FORCE_UPDATE === "true",
   }
 }
@@ -161,30 +160,26 @@ function extractCpmWithRegex(channelLabel, findings) {
 
 async function extractCpmWithLlm(channelLabel, month, year, findings) {
   if (findings.length === 0) return null
-  const { geminiKey, anthropicKey } = cfg()
-  if (geminiKey || anthropicKey) {
+  const { anthropicKey } = cfg()
+  if (anthropicKey) {
     const context = findings.map(f => `SOURCE: ${f.title} (${f.url})\nEXCERPT: ${f.excerpt}${f.text ? "\nFULL TEXT: " + f.text.slice(0, 1500) : ""}`).join("\n\n---\n\n")
     const prompt  = `Extract the verified CPM for ${channelLabel} advertising in ${MONTH_NAMES[month]} ${year}.\n\nSOURCES:\n${context}\n\nReturn ONLY valid JSON: {"cpm": 12.50, "sources": ["Title 1"], "note": "brief quote"} OR {"cpm": null, "reason": "why not found"}\n\nRules: only accept explicit dollar figures from ${CREDIBLE_SOURCES.join(", ")}. Do NOT invent numbers.`
     try {
-      let text = ""
-      if (geminiKey) {
-        const result = await callGemini(prompt, 256)
-        text = result?.text ?? ""
-      } else {
-        const res = await post("https://api.anthropic.com/v1/messages",
-          { "x-api-key": anthropicKey, "anthropic-version": "2023-06-01", "Content-Type": "application/json" },
-          { model: "claude-haiku-4-5-20251001", max_tokens: 256, messages: [{ role: "user", content: prompt }] }
-        )
-        if (res.status === 200) text = JSON.parse(res.body).content?.[0]?.text ?? ""
-      }
-      const s = text.indexOf("{"), e = text.lastIndexOf("}")
-      if (s >= 0 && e > s) {
-        const parsed = JSON.parse(text.slice(s, e + 1))
-        if (parsed.cpm && typeof parsed.cpm === "number" && parsed.cpm > 0 && parsed.cpm < 500) {
-          return { cpm: Math.round(parsed.cpm * 100) / 100, sources: parsed.sources ?? [], note: parsed.note ?? "" }
+      const res = await post("https://api.anthropic.com/v1/messages",
+        { "x-api-key": anthropicKey, "anthropic-version": "2023-06-01", "Content-Type": "application/json" },
+        { model: "claude-haiku-4-5-20251001", max_tokens: 256, messages: [{ role: "user", content: prompt }] }
+      )
+      if (res.status === 200) {
+        const text = JSON.parse(res.body).content?.[0]?.text ?? ""
+        const s = text.indexOf("{"), e = text.lastIndexOf("}")
+        if (s >= 0 && e > s) {
+          const parsed = JSON.parse(text.slice(s, e + 1))
+          if (parsed.cpm && typeof parsed.cpm === "number" && parsed.cpm > 0 && parsed.cpm < 500) {
+            return { cpm: Math.round(parsed.cpm * 100) / 100, sources: parsed.sources ?? [], note: parsed.note ?? "" }
+          }
         }
       }
-    } catch (e) { console.warn("LLM extraction failed:", e.message) }
+    } catch (e) { console.warn("Anthropic extraction failed:", e.message) }
   }
   const regexResult = extractCpmWithRegex(channelLabel, findings)
   if (regexResult) { console.log("   (regex fallback used)"); return regexResult }
