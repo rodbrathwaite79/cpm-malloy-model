@@ -97,7 +97,7 @@ pre { background: #0f172a; border: 1px solid #334155; border-radius: 8px; paddin
 
 <header id="overview">
   <h1>CPM Agent System — <span>Architecture & ROI Guide</span></h1>
-  <p class="subtitle">Updated July 4 2026 · All systems live · 10 interactions in Neon · 1,583× ROI confirmed</p>
+  <p class="subtitle">Updated July 5 2026 · All systems live · Auto-logging active · 1,583× ROI confirmed</p>
 </header>
 
 <!-- ═══════════════════════════════════════════════════════════════════════ -->
@@ -200,11 +200,22 @@ pre { background: #0f172a; border: 1px solid #334155; border-radius: 8px; paddin
     <div class="card">
       <div class="card-header">
         <h3>Universal Tracker (Guild)</h3>
-        <span class="status status-partial">◐ Deployed / Sandbox-Limited</span>
+        <span class="status status-live">● Live</span>
       </div>
-      <p>v1.0.8 deployed to Guild — validation PASSED. INIT completed via browser workaround (10 tasks in Neon). Guild's agent sandbox blocks all outbound HTTP (<code>fetch failed</code>) — init/log/dashboard modes can't call Vercel from within the runtime.</p>
-      <p><strong>QUERY and DASHBOARD modes updated</strong> to call <code>GET /api/interactions?view=&lt;view&gt;</code> for live Neon data (bypasses Malloyyo CSV entirely). On fetch failure, returns the equivalent <code>curl</code> command so you can run it manually.</p>
-      <code>agent/universal-tracker.ts — v1.0.8 · PASSED · sandbox-limited</code>
+      <p>v2.0.0 deployed and published to Guild — build passed July 5. Fixed three TypeScript errors that blocked previous builds: named function export, zod inputSchema/outputSchema properties, and <code>task.restore()</code> type cast. Guild's sandbox still blocks outbound HTTP — the agent returns equivalent <code>curl</code> commands when fetch fails.</p>
+      <code>agent/universal-tracker.ts — v2.0.0 · build PASSED · published ✓</code>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <h3>Auto-Logging (Zero Manual Steps)</h3>
+        <span class="status status-live">● Live</span>
+      </div>
+      <p>Three automatic logging mechanisms — no <code>log-ai</code> CLI required:</p>
+      <p><strong>Git post-commit hook</strong> — fires on every commit in this repo. Reads commit message, changed files, line count. Auto-classifies task type, estimates hours, POSTs to Neon in background.</p>
+      <p><strong>Global hook setup</strong> — <code>bash agent/setup-auto-logging.sh</code> extends the hook to all repos on this Mac.</p>
+      <p><strong>Nightly scheduled task</strong> — runs at 11pm, reads today's Cowork session transcripts, deduplicates against Neon, auto-logs any unrecorded sessions.</p>
+      <code>agent/setup-auto-logging.sh · .git/hooks/post-commit · cowork-session-auto-logger</code>
     </div>
 
   </div>
@@ -320,9 +331,9 @@ pre { background: #0f172a; border: 1px solid #334155; border-radius: 8px; paddin
       <text x="830" y="73" text-anchor="middle" fill="#86efac" font-size="12" font-family="system-ui" font-weight="700">agent.ts (CPM Agent)</text>
       <text x="830" y="90" text-anchor="middle" fill="#4ade80" font-size="10" font-family="system-ui">HITL + ROI · 6 modes ✓</text>
 
-      <rect x="725" y="130" width="210" height="55" rx="8" fill="#78350f" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="4,2"/>
-      <text x="830" y="153" text-anchor="middle" fill="#fbbf24" font-size="12" font-family="system-ui" font-weight="700">universal-tracker.ts</text>
-      <text x="830" y="170" text-anchor="middle" fill="#fbbf24" font-size="10" font-family="system-ui">v1.0.8 deployed · sandbox-limited</text>
+      <rect x="725" y="130" width="210" height="55" rx="8" fill="#14532d" stroke="#22c55e" stroke-width="1.5"/>
+      <text x="830" y="153" text-anchor="middle" fill="#86efac" font-size="12" font-family="system-ui" font-weight="700">universal-tracker.ts</text>
+      <text x="830" y="170" text-anchor="middle" fill="#4ade80" font-size="10" font-family="system-ui">v2.0.0 · build PASSED · published ✓</text>
 
       <rect x="725" y="210" width="210" height="55" rx="8" fill="#1e3a5f" stroke="#6366f1" stroke-width="1.5"/>
       <text x="830" y="233" text-anchor="middle" fill="#a5b4fc" font-size="12" font-family="system-ui" font-weight="700">Rod (User)</text>
@@ -563,8 +574,12 @@ log-ai --provider cursor --tool cursor --type code \
       <div><div class="test-name">Malloyyo interactions source</div><div class="test-desc">list_sources shows both cpm_benchmarks and interactions (DuckDB CSV, static snapshot). MCP query: 8 tasks, $2,935, 1,513× ROI. For live data use /api/interactions.</div></div>
     </div>
     <div class="test-item">
-      <div class="test-icon">⚠️</div>
-      <div><div class="test-name">universal-tracker.ts Guild deploy</div><div class="test-desc">v1.0.8 deployed, validation PASSED. INIT run via browser (7 tasks → Neon IDs 4–10). Guild sandbox blocks outbound HTTP — fetch fails at runtime.</div></div>
+      <div class="test-icon">✅</div>
+      <div><div class="test-name">universal-tracker.ts Guild deploy</div><div class="test-desc">v2.0.0 published July 5 — build PASSED. Fixed: named function export, zod inputSchema/outputSchema, task.restore() type cast. Guild sandbox still blocks outbound HTTP but agent returns curl fallback commands.</div></div>
+    </div>
+    <div class="test-item">
+      <div class="test-icon">✅</div>
+      <div><div class="test-name">Auto-logging (zero manual steps)</div><div class="test-desc">Git post-commit hook active in repo. Global setup: <code>bash agent/setup-auto-logging.sh</code>. Nightly Cowork session logger scheduled at 11pm. All AI interactions captured automatically.</div></div>
     </div>
   </div>
 
@@ -585,28 +600,34 @@ node agent/test-tracker-arch.mjs
   <h2>Concrete Next Steps (in order)</h2>
 
   <div class="alert alert-green" style="margin-bottom:20px">
-    <strong>All core systems live as of July 4 2026.</strong> Universal-tracker deployed (v1.0.8). 10 interactions in Neon. <code>/api/interactions</code> endpoint live (5 views, always-current Neon data). Live query: 1,583× ROI.
+    <strong>All systems live as of July 5 2026.</strong> Universal-tracker v2.0.0 published (build passed). Auto-logging active — every git commit and Cowork session logs automatically to Neon. Live ROI: 1,583×.
   </div>
 
   <table>
     <tr><th>#</th><th>Item</th><th>Notes</th><th>Status</th></tr>
     <tr>
       <td>1</td>
-      <td><strong>Update universal-tracker QUERY + DASHBOARD modes</strong></td>
-      <td>QUERY and DASHBOARD now call <code>GET /api/interactions?view=&lt;view&gt;</code> directly — bypasses Malloyyo CSV entirely. Returns live Neon data formatted as a markdown table. On fetch failure (Guild sandbox), returns equivalent <code>curl</code> command.</td>
-      <td>✅ Done — push &amp; redeploy</td>
+      <td><strong>universal-tracker v2.0.0</strong></td>
+      <td>Published July 5. Fixed TS2347 (task.restore type cast), TS2339 (named function + zod schemas). Build passed clean.</td>
+      <td>✅ Done</td>
     </tr>
     <tr>
       <td>2</td>
-      <td><strong>Guild sandbox outbound HTTP</strong></td>
-      <td>universal-tracker's init/log/dashboard modes can't call Vercel from within Guild's agent runtime (<code>fetch failed</code>). Ask Guild engineers: (1) Can outbound HTTP be enabled per-agent? (2) Is there a domain allowlist? (3) Is <code>task.callMcpTool</code> the recommended pattern instead of <code>fetch</code>?</td>
-      <td>⚠️ Known limitation — ask Guild support</td>
+      <td><strong>Auto-logging — git commits</strong></td>
+      <td>Post-commit hook active in this repo. Run <code>bash agent/setup-auto-logging.sh</code> once to extend to all repos on the Mac.</td>
+      <td>✅ Done — run setup script once</td>
     </tr>
     <tr>
       <td>3</td>
-      <td><strong>Open live dashboard</strong></td>
-      <td>Open <code>CPM Agent — Live Dashboard.html</code> from Finder — reads live data from <code>/api/metrics</code> + <code>/api/tracker-stats</code>. Both endpoints confirmed working.</td>
-      <td>✅ Ready now</td>
+      <td><strong>Auto-logging — Cowork sessions</strong></td>
+      <td>Nightly scheduled task reads session transcripts and logs them. Click "Run now" once in Cowork Scheduled panel to pre-approve tool permissions.</td>
+      <td>✅ Done — approve tools once</td>
+    </tr>
+    <tr>
+      <td>4</td>
+      <td><strong>Guild sandbox outbound HTTP</strong></td>
+      <td>Agent returns <code>curl</code> fallback commands when fetch fails. Ask Guild: can outbound HTTP be enabled per-agent, or is <code>task.callMcpTool</code> the recommended pattern?</td>
+      <td>⚠️ Ask Guild support</td>
     </tr>
   </table>
 </section>

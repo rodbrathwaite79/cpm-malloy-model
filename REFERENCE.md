@@ -59,11 +59,12 @@ Repo: https://github.com/rodbrathwaite79/cpm-malloy-model
 malloy-model-git/
 ├── agent/                         ← Mac-side scripts (synced to GitHub)
 │   ├── daily-report.mjs           ← Main report script (Resend email, DuckDB, GitHub)
-│   ├── quality-agent.mjs          ← System health checker
-│   ├── setup-new-mac.sh           ← One-command Mac setup
 │   ├── agent.ts                   ← Guild AI agent (metrics + synthesis)
-│   ├── package.json               ← Only dep: duckdb
-│   └── MIGRATE.md                 ← One-time Neon migration instructions
+│   ├── cowork-tracker.ts          ← Guild cowork session tracker
+│   ├── universal-tracker.ts       ← Guild universal AI interaction tracker
+│   ├── setup-auto-logging.sh      ← Global git post-commit hook installer
+│   ├── log-ai.mjs                 ← CLI tool to log AI interactions
+│   └── package.json               ← Only dep: duckdb
 ├── cpm-vercel/                    ← Vercel serverless project
 │   ├── api/
 │   │   ├── cpm-report.js          ← Main cron handler
@@ -88,8 +89,6 @@ This is where scripts actually run on each Mac (separate from git repo).
 ```
 agent/cpm-report-agent/
 ├── daily-report.mjs               ← Copy of repo version (update via git pull + cp)
-├── quality-agent.mjs              ← Copy of repo version
-├── setup-new-mac.sh               ← Copy of repo version
 ├── agent.ts                       ← Copy of repo version
 ├── package.json
 ├── node_modules/duckdb/           ← Native binary — must npm install per Mac arch
@@ -101,8 +100,7 @@ agent/cpm-report-agent/
 > ```bash
 > cd ~/Documents/cpm-agent/malloy-model-git
 > git pull
-> cp agent/daily-report.mjs   ~/Documents/cpm-agent/agent/cpm-report-agent/
-> cp agent/quality-agent.mjs  ~/Documents/cpm-agent/agent/cpm-report-agent/
+> cp agent/daily-report.mjs ~/Documents/cpm-agent/agent/cpm-report-agent/
 > ```
 
 ---
@@ -134,34 +132,6 @@ agent/cpm-report-agent/
 
 > **Never commit `.env` to git.** Vercel env vars are set in the dashboard under  
 > Settings → Environment Variables.
-
----
-
-## Setup a New Mac
-
-One command (takes ~5 minutes):
-
-```bash
-curl -sSL https://raw.githubusercontent.com/rodbrathwaite79/cpm-malloy-model/main/agent/setup-new-mac.sh | bash
-```
-
-This installs: Xcode tools, Homebrew, nvm, Node v22, clones the repo, installs duckdb, configures launchd, and runs QA validation.
-
-After setup, set credentials:
-```bash
-nano ~/Documents/cpm-agent/agent/cpm-report-agent/.env
-```
-
-Then validate:
-```bash
-node ~/Documents/cpm-agent/agent/cpm-report-agent/quality-agent.mjs
-```
-
-> **Apple Silicon (M-series) note:** The setup script handles ARM64 automatically.  
-> If you see a DuckDB architecture error, run:
-> ```bash
-> cd ~/Documents/cpm-agent/agent/cpm-report-agent && rm -rf node_modules && npm install
-> ```
 
 ---
 
@@ -244,31 +214,6 @@ Migration is idempotent — duplicate rows are skipped via `ON CONFLICT DO NOTHI
 
 ---
 
-## QA / Health Check
-
-```bash
-# Full validation
-node ~/Documents/cpm-agent/agent/cpm-report-agent/quality-agent.mjs
-
-# Validate + auto-fix Node path in launchd plist
-node ~/Documents/cpm-agent/agent/cpm-report-agent/quality-agent.mjs --fix
-```
-
-**What it checks:**
-1. All required env vars present
-2. Required files exist (scripts, parquet, plist, node_modules)
-3. DuckDB can read parquet (210 rows)
-4. Brave Search API responds
-5. Resend API key format valid
-6. GitHub token valid + repo accessible
-7. launchd schedule loaded with correct Node path
-8. Script integrity (key code patterns in daily-report.mjs)
-9. Guild agent integrity (agent.ts)
-
-Sends a QA report email to `EMAIL_TO` at the end of each run.
-
----
-
 ## Updating Scripts After Git Changes
 
 When you edit scripts on one Mac and push, update the other Mac:
@@ -278,11 +223,7 @@ When you edit scripts on one Mac and push, update the other Mac:
 cd ~/Documents/cpm-agent/malloy-model-git && git pull
 
 # Copy to working directory
-cp agent/daily-report.mjs  ~/Documents/cpm-agent/agent/cpm-report-agent/
-cp agent/quality-agent.mjs ~/Documents/cpm-agent/agent/cpm-report-agent/
-
-# Verify
-node ~/Documents/cpm-agent/agent/cpm-report-agent/quality-agent.mjs
+cp agent/daily-report.mjs ~/Documents/cpm-agent/agent/cpm-report-agent/
 ```
 
 ---
@@ -324,7 +265,7 @@ tail -50 ~/Documents/cpm-agent/logs/cpm-report.log
 | Resend email not arriving | Wrong API key | Check resend.com dashboard → API Keys |
 | Vercel cron not firing | Cron only runs on Vercel Pro/Hobby paid plans | Check Vercel billing |
 | `git pull` fails with 401 | Old token cached in git credential | `git remote set-url origin https://TOKEN@github.com/rodbrathwaite79/cpm-malloy-model.git` |
-| launchd not triggering | Wrong Node path in plist | `node quality-agent.mjs --fix` |
+| launchd not triggering | Wrong Node path in plist | Check plist `ProgramArguments` — ensure it points to `$(which node)` path |
 | `dataPoints: 0` in Vercel response | No new CPM data found (normal mid-month) | Normal — historical data still in email |
 | Neon connection error | DATABASE_URL missing or expired | Re-copy from Neon console |
 

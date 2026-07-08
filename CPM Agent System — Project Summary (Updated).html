@@ -322,7 +322,7 @@
         <div class="card-icon">🖥️</div>
         <span class="badge badge-cyan">Setup Agent</span>
         <div class="card-title">Mac Setup Script</div>
-        <div class="card-file">agent/setup-new-mac.sh</div>
+        <div class="card-file">agent/setup-auto-logging.sh</div>
         <p>One command migrates the entire Mac-side system to a new machine. Handles everything from Homebrew to launchd installation. Detects Apple Silicon vs Intel automatically.</p>
         <ul>
           <li>Installs: Xcode tools, Homebrew, nvm, Node v22</li>
@@ -455,7 +455,7 @@
         <text x="310" y="557" text-anchor="middle" fill="#334155" font-size="10">DuckDB + parquet</text>
         <text x="480" y="542" text-anchor="middle" fill="#475569" font-size="11">quality-agent.mjs</text>
         <text x="480" y="557" text-anchor="middle" fill="#334155" font-size="10">9-check validator</text>
-        <text x="650" y="542" text-anchor="middle" fill="#475569" font-size="11">setup-new-mac.sh</text>
+        <text x="650" y="542" text-anchor="middle" fill="#475569" font-size="11">setup-auto-logging.sh</text>
         <text x="650" y="557" text-anchor="middle" fill="#334155" font-size="10">one-command install</text>
 
         <!-- ════ ARROWS ════ -->
@@ -560,21 +560,18 @@
       </ul>
     </div>
 
-    <h3 style="color:var(--cyan);margin-bottom:16px;">🖥️ setup-new-mac.sh — One-Command Mac Setup</h3>
+    <h3 style="color:var(--cyan);margin-bottom:16px;">🖥️ setup-auto-logging.sh — One-Command Auto-Logging Setup</h3>
     <p style="color:var(--subtle);font-size:14px;margin-bottom:20px;">
-      Lives in <code>agent/setup-new-mac.sh</code>. Designed to be run on a brand new Mac with a single <code>curl | bash</code> command. Takes roughly 5 minutes and leaves the Mac fully configured and scheduled.
+      Lives in <code>agent/setup-auto-logging.sh</code>. Run once on any Mac to enable automatic AI interaction logging across all git repos. Zero manual steps required after setup.
     </p>
     <div class="card">
-      <p><strong style="color:var(--text);">What it installs and configures:</strong></p>
+      <p><strong style="color:var(--text);">What it sets up:</strong></p>
       <ul style="margin-top:12px;">
-        <li>Xcode Command Line Tools, Homebrew, nvm, Node.js v22</li>
-        <li>Clones <code>github.com/rodbrathwaite79/cpm-malloy-model</code></li>
-        <li>Installs DuckDB with the correct binary for your chip (ARM64 or x86)</li>
-        <li>Copies scripts to working directory at <code>~/Documents/cpm-agent/agent/cpm-report-agent/</code></li>
-        <li>Generates a machine-specific <code>com.rod.cpm-report.plist</code> with the correct Node path</li>
-        <li>Prompts for all required credentials and writes <code>.env</code> (skips if already present)</li>
-        <li>Loads the launchd schedule with <code>launchctl load</code></li>
-        <li>Runs <code>quality-agent.mjs</code> as final validation</li>
+        <li>Creates <code>~/.git-hooks/post-commit</code> — fires silently after every git commit</li>
+        <li>Sets <code>git config --global core.hooksPath ~/.git-hooks</code> — applies to ALL repos</li>
+        <li>Each commit auto-detects task type, estimates hours, and POSTs to Neon ROI tracker</li>
+        <li>Reads <code>LOG_API_KEY</code> from local <code>.env</code> — key never hardcoded in committed files</li>
+        <li>Nightly Cowork session logger runs separately at 11pm via Cowork Scheduled Tasks</li>
       </ul>
     </div>
   </div>
@@ -707,7 +704,7 @@
       ├── <span class="dir">agent/</span>  <span class="note">← Mac-side scripts (synced to GitHub)</span><br>
       │   ├── <span class="file">daily-report.mjs</span>      <span class="note">← Mac backup report runner</span><br>
       │   ├── <span class="file">quality-agent.mjs</span>     <span class="note">← System health validator</span><br>
-      │   ├── <span class="file">setup-new-mac.sh</span>      <span class="note">← One-command new Mac setup</span><br>
+      │   ├── <span class="file">setup-auto-logging.sh</span> <span class="note">← Enable auto-logging on any Mac</span><br>
       │   ├── <span class="file">agent.ts</span>              <span class="note">← Guild AI agent (optional, manual)</span><br>
       │   └── <span class="file">package.json</span>          <span class="note">← dep: duckdb only</span><br>
       ├── <span class="dir">cpm-vercel/</span>  <span class="note">← Vercel serverless project (primary runner)</span><br>
@@ -769,7 +766,7 @@
     <h3 style="margin-bottom:16px;">One-Command Setup</h3>
     <div class="file-tree" style="margin-bottom:20px;">
       <span class="note"># Run this on the new Mac — takes ~5 minutes</span><br>
-      curl -sSL https://raw.githubusercontent.com/rodbrathwaite79/cpm-malloy-model/main/agent/setup-new-mac.sh | bash<br><br>
+      bash ~/Documents/cpm-agent/malloy-model-git/agent/setup-auto-logging.sh<br><br>
       <span class="note"># After setup: set credentials</span><br>
       nano ~/Documents/cpm-agent/agent/cpm-report-agent/.env<br><br>
       <span class="note"># Verify everything is healthy</span><br>

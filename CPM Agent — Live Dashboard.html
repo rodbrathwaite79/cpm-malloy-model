@@ -186,6 +186,84 @@
     .dot-green  { background: #22c55e; }
     .dot-red    { background: #ef4444; }
     .dot-amber  { background: #f59e0b; }
+
+    /* Clickable rows */
+    tr.clickable { cursor: pointer; }
+    tr.clickable:hover td { background: #1e3a5f44; }
+
+    /* Modal */
+    .modal-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-backdrop.open { display: flex; }
+    .modal {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 14px;
+      padding: 28px;
+      max-width: 480px;
+      width: 90%;
+      position: relative;
+    }
+    .modal h3 { font-size: 16px; font-weight: 700; margin-bottom: 18px; color: #f8fafc; }
+    .modal-close {
+      position: absolute;
+      top: 14px; right: 18px;
+      background: none;
+      border: none;
+      color: #64748b;
+      font-size: 20px;
+      cursor: pointer;
+      line-height: 1;
+    }
+    .modal-close:hover { color: #e2e8f0; }
+    .breakdown-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      padding: 8px 0;
+      border-bottom: 1px solid #334155;
+      font-size: 13px;
+    }
+    .breakdown-row:last-child { border-bottom: none; }
+    .breakdown-label { color: #94a3b8; }
+    .breakdown-value { color: #f8fafc; font-weight: 600; }
+    .calc-box {
+      background: #0f172a;
+      border-radius: 8px;
+      padding: 14px 16px;
+      margin: 16px 0;
+      font-size: 13px;
+      color: #cbd5e1;
+      line-height: 1.7;
+    }
+    .calc-box .eq { color: #22c55e; font-weight: 700; font-size: 15px; }
+    .value-info {
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 10px;
+      padding: 18px 20px;
+      margin-top: 32px;
+      font-size: 12px;
+      color: #94a3b8;
+      line-height: 1.7;
+    }
+    .value-info h4 { font-size: 13px; font-weight: 700; color: #cbd5e1; margin-bottom: 10px; }
+    .rate-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px,1fr)); gap: 8px; margin-top: 10px; }
+    .rate-chip {
+      background: #1e293b;
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-size: 11px;
+    }
+    .rate-chip .rt { color: #818cf8; font-weight: 700; }
+    .rate-chip .rn { color: #64748b; margin-top: 2px; }
   </style>
 </head>
 <body>
@@ -271,6 +349,32 @@
   </div>
 </div>
 
+<!-- ── HOURS BREAKDOWN MODAL ──────────────────────────────────────────────── -->
+<div class="modal-backdrop" id="modalBackdrop" onclick="closeModal(event)">
+  <div class="modal" id="modalBox">
+    <button class="modal-close" onclick="closeModalDirect()">✕</button>
+    <h3 id="modalTitle">Hours Breakdown</h3>
+    <div id="modalContent"></div>
+  </div>
+</div>
+
+<!-- ── VALUE DEFINITION ───────────────────────────────────────────────────── -->
+<div class="value-info">
+  <h4>📐 How is Value calculated?</h4>
+  Value is the estimated dollar amount of work an AI tool completed — based on <strong>how many hours it saved</strong> multiplied by the <strong>market hourly rate</strong> for that type of work. It answers: <em>"What would a skilled human contractor have charged for this?"</em>
+  <div class="rate-grid">
+    <div class="rate-chip"><div class="rt">$175 / hr</div><div class="rn">Analysis</div></div>
+    <div class="rate-chip"><div class="rt">$150 / hr</div><div class="rn">Code</div></div>
+    <div class="rate-chip"><div class="rt">$125 / hr</div><div class="rn">Research</div></div>
+    <div class="rate-chip"><div class="rt">$100 / hr</div><div class="rn">Testing</div></div>
+    <div class="rate-chip"><div class="rt">$80 / hr</div><div class="rn">Document</div></div>
+  </div>
+  <div style="margin-top:12px;color:#64748b">
+    <strong>ROI Multiple</strong> = Value ÷ API Cost &nbsp;·&nbsp;
+    <strong>Hours</strong> are estimated from scope (lines changed for code commits; session length for Cowork interactions)
+  </div>
+</div>
+
 <script>
   const CPM_BASE = "https://cpm-vercel.vercel.app"
 
@@ -308,6 +412,10 @@
   async function loadCpm() {
     try {
       const r    = await fetch(`${CPM_BASE}/api/metrics`)
+      if (!r.ok) {
+        const txt = await r.text().catch(() => "")
+        throw new Error(`HTTP ${r.status}${txt ? ": " + txt.slice(0,120) : ""}`)
+      }
       const data = await r.json()
       const s    = data.stats
 
@@ -390,11 +498,13 @@
         </tr>
       `).join("") || '<tr><td colspan="5" class="loading">No data yet</td></tr>'
 
-      document.getElementById("recentBody").innerHTML = (data.recent ?? []).map(r => `
-        <tr>
+      const recent = data.recent ?? []
+      window._recentData = recent
+      document.getElementById("recentBody").innerHTML = recent.map((r, i) => `
+        <tr class="clickable" onclick="showBreakdown(${i})" title="Click to see hours breakdown">
           <td><span class="pill pill-blue">${r.task_type}</span></td>
           <td>${r.tool}</td>
-          <td>${r.hours_estimate}h</td>
+          <td style="color:#818cf8;font-weight:600">${r.hours_estimate}h</td>
           <td>${fmt(r.value_usd, "$")}</td>
           <td>${r.first_pass
             ? '<span class="pill pill-green">✓ 1st pass</span>'
@@ -407,6 +517,71 @@
       document.getElementById("roiCards").innerHTML = `<div class="error-msg">⚠ Could not load tracker data: ${e.message}</div>`
     }
   }
+
+  // ── Hourly rates by task type ─────────────────────────────────────────────
+  const RATES = { analysis: 175, code: 150, research: 125, testing: 100, document: 80 }
+
+  function hoursLabel(hours) {
+    const h = parseFloat(hours)
+    if (h <= 0.25) return "≤ 25 lines changed (0.25h)"
+    if (h <= 0.5)  return "25–75 lines changed (0.5h)"
+    if (h <= 1.0)  return "75–200 lines changed (1.0h)"
+    if (h <= 2.0)  return "200–400 lines changed (2.0h)"
+    if (h <= 3.0)  return "400+ lines changed (3.0h)"
+    return `${h}h (manually estimated)`
+  }
+
+  function showBreakdown(idx) {
+    const r = (window._recentData ?? [])[idx]
+    if (!r) return
+    const hours = parseFloat(r.hours_estimate)
+    const rate  = RATES[r.task_type] ?? 150
+    const value = parseFloat(r.value_usd)
+    const cost  = parseFloat(r.cost_usd) || 0
+    const roid  = cost > 0 ? Math.round(value / cost) : null
+
+    document.getElementById("modalTitle").textContent =
+      `${r.task_type.charAt(0).toUpperCase() + r.task_type.slice(1)} · ${r.tool}`
+
+    document.getElementById("modalContent").innerHTML = `
+      <div class="breakdown-row">
+        <span class="breakdown-label">Description</span>
+        <span class="breakdown-value" style="max-width:260px;text-align:right;font-size:12px">${r.description || "—"}</span>
+      </div>
+      <div class="breakdown-row">
+        <span class="breakdown-label">Task type</span>
+        <span class="breakdown-value">${r.task_type} → $${rate}/hr market rate</span>
+      </div>
+      <div class="breakdown-row">
+        <span class="breakdown-label">Hours basis</span>
+        <span class="breakdown-value" style="text-align:right;font-size:12px">${hoursLabel(hours)}</span>
+      </div>
+      <div class="calc-box">
+        <div>${hours}h &nbsp;×&nbsp; $${rate}/hr &nbsp;= &nbsp;<span class="eq">$${value.toLocaleString()}</span> value</div>
+        ${cost > 0 ? `<div style="margin-top:6px;color:#94a3b8">API cost: $${cost.toFixed(4)} &nbsp;→&nbsp; <span style="color:#c084fc">${roid ? roid.toLocaleString() + '×' : '∞'} ROI</span></div>` : ""}
+      </div>
+      ${r.notes ? `<div class="breakdown-row"><span class="breakdown-label">Notes</span><span class="breakdown-value" style="font-size:12px;text-align:right;max-width:260px">${r.notes}</span></div>` : ""}
+      <div class="breakdown-row">
+        <span class="breakdown-label">Quality</span>
+        <span class="breakdown-value">${r.first_pass ? "✓ First pass (no corrections)" : `${r.corrections} correction${r.corrections !== 1 ? "s" : ""}`}</span>
+      </div>
+      <div class="breakdown-row">
+        <span class="breakdown-label">Date</span>
+        <span class="breakdown-value">${new Date(r.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span>
+      </div>
+    `
+    document.getElementById("modalBackdrop").classList.add("open")
+  }
+
+  function closeModal(e) {
+    if (e.target === document.getElementById("modalBackdrop")) closeModalDirect()
+  }
+
+  function closeModalDirect() {
+    document.getElementById("modalBackdrop").classList.remove("open")
+  }
+
+  document.addEventListener("keydown", e => { if (e.key === "Escape") closeModalDirect() })
 
   // ── load all ─────────────────────────────────────────────────────────────────
 
