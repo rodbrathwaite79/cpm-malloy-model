@@ -61,7 +61,7 @@ That's it. Everything else is configuration and plumbing that makes those two th
 
 **Primary scheduler:** Vercel serverless cron — runs every Monday regardless of whether any Mac is on.  
 **Mac launchd:** Backup runner on MacBook. Also fires Monday 8am local time.  
-**Database:** Neon Postgres (cloud) — 210+ CPM rows + 23 AI interaction records.  
+**Database:** Neon Postgres (cloud) — 210+ CPM rows + 11 AI interaction records (after removing mislabeled entries).  
 **Email:** Resend REST API — free tier, no SMTP needed.  
 **Session logging:** GitHub Actions — runs in cloud on push, works from any machine.
 
@@ -255,7 +255,7 @@ UNIQUE: (year, month, channel)
 -- CPM report run log
 agent_runs (id, run_date, source, outcome, input_tokens, output_tokens, data_points_found, created_at)
 
--- AI interaction tracker (23 records as of July 2026)
+-- AI interaction tracker (11 records as of July 2026; 12 mislabeled git-hook entries removed)
 ai_interactions (
   id, project, provider, tool, task_type, description,
   hours_estimate, hours_source, value_usd, first_pass, corrections,
@@ -293,6 +293,7 @@ The GitHub Personal Access Token needs **both**:
 | `vercel --prod` path error | Running from inside `cpm-vercel/` | Run from `malloy-model-git/` root |
 | `dataPoints: 0` | No new CPM data (normal mid-month) | Normal — history still in email |
 | Neon connection error | DATABASE_URL missing/expired | Re-copy from Neon console |
+| Mislabeled `provider=cursor` entries with `session_id=git-*` | Old `setup-auto-logging.sh` git hook hardcoded `provider:"cursor"` on every git commit | Run `node agent/cleanup-cursor-entries.mjs` (requires DATABASE_URL in env) |
 | launchd not firing | Wrong Node path in plist | Check plist `ProgramArguments` |
 
 ---
