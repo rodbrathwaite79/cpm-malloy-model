@@ -1,0 +1,51 @@
+{
+  "session_id": "2026-07-10-1445",
+  "session_start": "2026-07-10T14:45:00Z",
+  "session_end": "2026-07-10T15:12:22Z",
+  "duration_minutes": 27,
+  "provider": "claude",
+  "tool": "cowork",
+  "project": "cpm-agent",
+  "tasks": [
+    {
+      "type": "analysis",
+      "description": "Debugged GitHub Action end-to-end: navigated failed run, re-ran job, diagnosed HTTP 401 (LOG_API_KEY confirmed working), then diagnosed HTTP 400 — identified camelCase vs snake_case field name mismatch between workflow payload and log-interaction.js endpoint",
+      "start": "2026-07-10T14:45:00Z",
+      "end": "2026-07-10T15:00:00Z",
+      "duration_minutes": 15,
+      "human_equivalent_hours": 0.5,
+      "value_usd": 88,
+      "first_pass": true,
+      "output": ".github/workflows/log-sessions.yml"
+    },
+    {
+      "type": "code",
+      "description": "Fixed log-sessions.yml payload builder to use snake_case field names matching the API (taskType→task_type, hoursEstimate→hours_estimate, valueUsd→value_usd, firstPass→first_pass, hoursSource→hours_source, sessionId→session_id)",
+      "start": "2026-07-10T15:00:00Z",
+      "end": "2026-07-10T15:05:00Z",
+      "duration_minutes": 5,
+      "human_equivalent_hours": 0.25,
+      "value_usd": 38,
+      "first_pass": true,
+      "output": ".github/workflows/log-sessions.yml"
+    },
+    {
+      "type": "analysis",
+      "description": "Validated full end-to-end pipeline: GitHub Action returned HTTP 200, Neon entry confirmed (id=23, 7.5h, $1175), session JSON moved from pending/ to posted/ automatically",
+      "start": "2026-07-10T15:05:00Z",
+      "end": "2026-07-10T15:12:22Z",
+      "duration_minutes": 7,
+      "human_equivalent_hours": 0.25,
+      "value_usd": 44,
+      "first_pass": true,
+      "output": "session-logs/posted/session-2026-07-10-1400.json"
+    }
+  ],
+  "summary": {
+    "primary_task_type": "analysis",
+    "total_human_equivalent_hours": 1.0,
+    "total_value_usd": 170,
+    "first_pass": true,
+    "corrections": 0
+  }
+}
