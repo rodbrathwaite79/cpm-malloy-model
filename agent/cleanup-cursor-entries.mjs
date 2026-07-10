@@ -20,20 +20,28 @@ import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-// Load .env from agent/ directory if present
-try {
-  const envPath = join(__dirname, '.env');
-  const lines = readFileSync(envPath, 'utf8').split('\n');
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('#')) continue;
-    const eq = trimmed.indexOf('=');
-    if (eq < 0) continue;
-    const key = trimmed.slice(0, eq).trim();
-    const val = trimmed.slice(eq + 1).trim();
-    if (key && !process.env[key]) process.env[key] = val;
-  }
-} catch { /* no .env, rely on environment */ }
+// Load .env from agent/, repo root, or cpm-vercel/ — whichever has DATABASE_URL
+const envCandidates = [
+  join(__dirname, '.env'),
+  join(__dirname, '..', '.env'),
+  join(__dirname, '..', '.env.local'),
+  join(__dirname, '..', 'cpm-vercel', '.env'),
+];
+for (const envPath of envCandidates) {
+  try {
+    const lines = readFileSync(envPath, 'utf8').split('\n');
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      const eq = trimmed.indexOf('=');
+      if (eq < 0) continue;
+      const key = trimmed.slice(0, eq).trim();
+      const val = trimmed.slice(eq + 1).trim();
+      if (key && !process.env[key]) process.env[key] = val;
+    }
+    if (process.env.DATABASE_URL) break;
+  } catch { /* file not found, try next */ }
+}
 
 const DATABASE_URL = process.env.DATABASE_URL;
 if (!DATABASE_URL) {
