@@ -1,7 +1,21 @@
 # CPM Agent — Reference Guide
 
-Last updated: June 2026  
+Last updated: July 2026  
 Repo: https://github.com/rodbrathwaite79/cpm-malloy-model
+
+> **What is this file?** A quick-lookup reference for anyone maintaining or extending the CPM Agent system. Each section has a plain-English summary followed by the technical details.
+
+---
+
+## What the System Does (Plain English)
+
+Two things run automatically:
+
+1. **Every Monday at 8am ET** — a cloud program searches the web for CPM advertising prices, saves them to a database, and emails you a report. No computer needs to be on.
+
+2. **After every Cowork session** — Claude writes a log of what was built, estimates how long a human would have taken, and when you do a `git push`, a cloud job automatically files the log in the database.
+
+That's it. Everything else is configuration and plumbing that makes those two things work reliably.
 
 ---
 
@@ -11,7 +25,7 @@ Repo: https://github.com/rodbrathwaite79/cpm-malloy-model
 ┌─────────────────────────────────────────────────────────┐
 │                   WEEKLY REPORT FLOW                    │
 │                                                         │
-│  Vercel Cron (8am EST every Monday)                    │
+│  Vercel Cron (8am ET every Monday = 0 13 * * 1 UTC)    │
 │       │                                                 │
 │       ▼                                                 │
 │  /api/cpm-report.js                                     │
@@ -22,16 +36,34 @@ Repo: https://github.com/rodbrathwaite79/cpm-malloy-model
 │       ├── Resend            → email report to Rod       │
 │       └── Neon agent_runs   → log run outcome          │
 │                                                         │
-│  Guild Agent (optional, manual)                         │
+│  Mac launchd (backup, also fires Monday 8am local)      │
+└─────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────┐
+│                AI SESSION LOGGING FLOW                   │
+│                                                         │
+│  Cowork session ends                                    │
 │       │                                                 │
-│       └── AI synthesis from CPM data + web findings    │
+│       ▼                                                 │
+│  Claude writes session-logs/pending/session-*.json      │
+│       │                                                 │
+│       ▼                                                 │
+│  git push  (one manual step from any machine)           │
+│       │                                                 │
+│       ▼                                                 │
+│  GitHub Action (.github/workflows/log-sessions.yml)     │
+│       │                                                 │
+│       ├── POST to /api/log-interaction (Vercel)         │
+│       ├── Neon ai_interactions → saves record           │
+│       └── Moves file: pending/ → posted/               │
 └─────────────────────────────────────────────────────────┘
 ```
 
-**Primary scheduler:** Vercel serverless cron — runs every Monday at 8am ET regardless of whether either Mac is on.  
-**Mac launchd:** Installed on both Macs as a backup (also runs at 8am local time on Mondays).  
-**Database:** Neon Postgres (cloud) — 210+ historical CPM rows, queryable from anywhere.  
-**Email:** Resend REST API — free tier, 3,000 emails/month, no SMTP.
+**Primary scheduler:** Vercel serverless cron — runs every Monday regardless of whether any Mac is on.  
+**Mac launchd:** Backup runner on MacBook. Also fires Monday 8am local time.  
+**Database:** Neon Postgres (cloud) — 210+ CPM rows + 23 AI interaction records.  
+**Email:** Resend REST API — free tier, no SMTP needed.  
+**Session logging:** GitHub Actions — runs in cloud on push, works from any machine.
 
 ---
 
@@ -40,147 +72,172 @@ Repo: https://github.com/rodbrathwaite79/cpm-malloy-model
 | Service | URL | What it does |
 |---------|-----|--------------|
 | Vercel (cpm-vercel) | https://vercel.com/brathwaite/cpm-vercel | Hosts serverless functions + cron |
-| Vercel (malloyyo) | https://vercel.com/brathwaite/malloyyo | Malloy model server (MCP) |
 | Neon | https://console.neon.tech → mute-thunder-42290582 | Postgres database |
 | Resend | https://resend.com | Email sending |
 | Brave Search | https://search.brave.com/app | Web data for CPM prices |
-| GitHub | https://github.com/rodbrathwaite79/cpm-malloy-model | Source code |
-| Live report URL | https://cpm-vercel-drphd5mkm-brathwaite.vercel.app/api/cpm-report | Trigger manually (needs auth header) |
-| Metrics API | https://cpm-vercel-drphd5mkm-brathwaite.vercel.app/api/metrics | Read run history (public GET) |
-| Log AI interaction | https://cpm-vercel-drphd5mkm-brathwaite.vercel.app/api/log-interaction | POST + LOG_API_KEY (universal tracker) |
-| Malloyyo MCP | https://malloyyo-eehpbmwns-brathwaite.vercel.app | Malloy semantic model server |
+| GitHub | https://github.com/rodbrathwaite79/cpm-malloy-model | Source code + session logging pipeline |
+| ROI Stats API | https://cpm-vercel.vercel.app/api/tracker-stats | Public GET — live ROI numbers |
+| Log AI Interaction | https://cpm-vercel.vercel.app/api/log-interaction | POST + LOG_API_KEY |
+| CPM Metrics API | https://cpm-vercel.vercel.app/api/metrics | Public GET — CPM run history |
 
 ---
 
 ## File Layout
 
-### Git Repo (`~/Documents/cpm-agent/malloy-model-git/`)
 ```
 malloy-model-git/
-├── agent/                         ← Mac-side scripts (synced to GitHub)
-│   ├── daily-report.mjs           ← Main report script (Resend email, DuckDB, GitHub)
-│   ├── agent.ts                   ← Guild AI agent (metrics + synthesis)
-│   ├── cowork-tracker.ts          ← Guild cowork session tracker
-│   ├── universal-tracker.ts       ← Guild universal AI interaction tracker
-│   ├── setup-auto-logging.sh      ← Global git post-commit hook installer
-│   ├── log-ai.mjs                 ← CLI tool to log AI interactions
-│   └── package.json               ← Only dep: duckdb
-├── cpm-vercel/                    ← Vercel serverless project
+├── .github/
+│   └── workflows/
+│       └── log-sessions.yml        ← GitHub Action: auto-logs sessions on push
+├── agent/
+│   ├── daily-report.mjs            ← Mac backup runner (Monday 8am launchd)
+│   └── log-ai.mjs                  ← CLI tool to manually log a session
+├── cpm-vercel/                     ← Vercel serverless project
 │   ├── api/
-│   │   ├── cpm-report.js          ← Main cron handler
-│   │   └── metrics.js             ← GET/POST run metrics
+│   │   ├── cpm-report.js           ← Weekly cron handler (PRIMARY)
+│   │   ├── log-interaction.js      ← POST endpoint: logs AI sessions to Neon
+│   │   ├── tracker-stats.js        ← GET endpoint: ROI summary from Neon
+│   │   └── metrics.js              ← GET/POST: CPM run history
 │   ├── lib/
-│   │   ├── database.js            ← Neon Postgres client + schema
-│   │   └── report-html.js         ← HTML email + dashboard builders
-│   ├── scripts/
-│   │   └── migrate-to-neon.mjs   ← One-time migration (already done)
-│   ├── vercel.json                ← Cron schedule (0 13 * * 1 = 8am EST Mondays)
-│   ├── package.json
-│   └── .env.example               ← Template for required env vars
-├── cpm_benchmarks.parquet         ← Historical CPM data (local backup)
-├── cpm_monthly_updates.csv        ← New rows added by daily runs
-├── index.malloy
-└── REFERENCE.md                   ← This file
+│   │   ├── database.js             ← Neon client, schema, insert functions
+│   │   ├── insights.js             ← Rule-based CPM insight engine (free, no API)
+│   │   └── report-html.js          ← HTML email + dashboard builders
+│   └── vercel.json                 ← Cron: "0 13 * * 1" = Monday 8am ET
+├── session-logs/
+│   ├── pending/                    ← Claude writes logs here; Action picks them up
+│   └── posted/                     ← Moved here after successful database write
+├── skills/
+│   ├── CPM-Skills-Reference.html   ← Interactive 18-skill reference guide
+│   └── [18 skill directories]/     ← SKILL.md files for each skill
+├── CLAUDE.md                       ← Session logging instructions for Claude
+├── REFERENCE.md                    ← This file
+├── index.malloy                    ← Malloy model: CPM benchmarks
+└── ai_tracker.malloy               ← Malloy model: AI interaction tracker
 ```
-
-### Working Directory (`~/Documents/cpm-agent/agent/cpm-report-agent/`)
-This is where scripts actually run on each Mac (separate from git repo).
-
-```
-agent/cpm-report-agent/
-├── daily-report.mjs               ← Copy of repo version (update via git pull + cp)
-├── agent.ts                       ← Copy of repo version
-├── package.json
-├── node_modules/duckdb/           ← Native binary — must npm install per Mac arch
-├── .env                           ← Real credentials (NOT in git)
-└── com.rod.cpm-report.plist       ← launchd schedule config
-```
-
-> **Important:** After `git pull`, copy updated scripts to the working directory:
-> ```bash
-> cd ~/Documents/cpm-agent/malloy-model-git
-> git pull
-> cp agent/daily-report.mjs ~/Documents/cpm-agent/agent/cpm-report-agent/
-> ```
 
 ---
 
 ## Environment Variables
 
+### Vercel (set in Vercel dashboard → Settings → Environment Variables)
+
+| Variable | Purpose |
+|----------|---------|
+| `DATABASE_URL` | Neon Postgres connection string |
+| `CRON_SECRET` | Authenticates Vercel cron + manual triggers |
+| `BRAVE_API_KEY` | Brave Search web queries |
+| `RESEND_API_KEY` | Email sending |
+| `GITHUB_TOKEN` | GitHub CSV backup writes |
+| `EMAIL_TO` | Primary report recipient |
+| `LOG_API_KEY` | Authenticates POST /api/log-interaction |
+
+### GitHub Actions (set in repo Settings → Secrets → Actions)
+
+| Secret | Purpose |
+|--------|---------|
+| `LOG_API_KEY` | Same value as Vercel LOG_API_KEY — used by log-sessions.yml |
+
 ### Mac `.env` (`~/Documents/cpm-agent/agent/cpm-report-agent/.env`)
 
-| Variable | Where to get it | Required |
-|----------|----------------|----------|
-| `BRAVE_API_KEY` | search.brave.com/app → API | ✅ |
-| `GITHUB_TOKEN` | github.com/settings/tokens → Classic → repo scope | ✅ |
-| `RESEND_API_KEY` | resend.com → API Keys (starts with `re_`) | ✅ |
-| `EMAIL_TO` | Your email address | ✅ |
-| `MALLOYYO_URL` | Your Malloyyo Vercel URL | optional |
-| `ANTHROPIC_API_KEY` | console.anthropic.com | optional (enables AI synthesis) |
+| Variable | Required |
+|----------|---------|
+| `BRAVE_API_KEY` | ✅ |
+| `GITHUB_TOKEN` | ✅ |
+| `RESEND_API_KEY` | ✅ |
+| `EMAIL_TO` | ✅ |
+| `DATABASE_URL` | ✅ |
 
-### Vercel Environment Variables (set in Vercel dashboard)
-
-| Variable | Notes |
-|----------|-------|
-| `DATABASE_URL` | Neon connection string — from console.neon.tech |
-| `CRON_SECRET` | Any random string — used to authenticate cron trigger |
-| `METRICS_API_KEY` | Any random string — used to authenticate POST /api/metrics |
-| `BRAVE_API_KEY` | Same as Mac |
-| `RESEND_API_KEY` | Same as Mac |
-| `GITHUB_TOKEN` | Same as Mac |
-| `EMAIL_TO` | Same as Mac |
-
-> **Never commit `.env` to git.** Vercel env vars are set in the dashboard under  
-> Settings → Environment Variables.
+> **Security rules (never violate):**
+> - Never commit `.env` files
+> - Never hard-code credentials — use `process.env.VAR_NAME`
+> - `malloy-config-local.json` must stay gitignored
 
 ---
 
 ## Running the Report
 
-### Vercel (primary — automatic)
-Runs every Monday at 8am EST automatically via cron. No action needed.
+### Automatic (nothing to do)
+Vercel cron fires every Monday at 8am ET (`0 13 * * 1`). Mac launchd also fires as backup.
 
 ### Trigger Vercel manually
 ```bash
-curl -X POST https://cpm-vercel-drphd5mkm-brathwaite.vercel.app/api/cpm-report \
+curl -X POST https://cpm-vercel.vercel.app/api/cpm-report \
   -H "Authorization: Bearer YOUR_CRON_SECRET"
 ```
-Returns: `{"ok":true,"outcome":"autonomous","dataPoints":N,"historicalRows":210}`
 
-### Run locally on Mac (backup)
+### Run locally on Mac
 ```bash
 node ~/Documents/cpm-agent/agent/cpm-report-agent/daily-report.mjs
 ```
 
-### Force update (bypass the once-per-month guard)
+### Force update (bypass once-per-month guard)
 ```bash
 FORCE_UPDATE=true node ~/Documents/cpm-agent/agent/cpm-report-agent/daily-report.mjs
 ```
 
 ---
 
+## Session Logging
+
+> **Plain English:** Claude writes its own time sheet. You `git push`. A cloud job files it automatically.
+
+### How it works
+1. Session start → Claude creates `session-logs/pending/session-YYYY-MM-DD-HHmm.json`
+2. After each task → Claude updates the JSON with description, hours, value
+3. Session end → Say "log this." Claude commits the file
+4. `git push` from any machine → GitHub Action fires
+5. Action POSTs to `/api/log-interaction` → 200 OK → file moves to `posted/`
+
+### Session JSON schema
+```json
+{
+  "session_id": "2026-07-10-1400",
+  "session_start": "2026-07-10T14:00:00Z",
+  "session_end": "2026-07-10T16:30:00Z",
+  "provider": "claude",
+  "tool": "cowork",
+  "project": "cpm-agent",
+  "tasks": [
+    {
+      "type": "code",
+      "description": "What was built",
+      "start": "...", "end": "...",
+      "human_equivalent_hours": 5.0,
+      "value_usd": 750,
+      "first_pass": true,
+      "output": "path/to/output"
+    }
+  ],
+  "summary": {
+    "primary_task_type": "code",
+    "total_human_equivalent_hours": 7.5,
+    "total_value_usd": 1175,
+    "first_pass": true,
+    "corrections": 0
+  }
+}
+```
+
+### Rate table
+| Task type | Rate/hr |
+|-----------|---------|
+| code | $150 |
+| analysis | $175 |
+| research | $125 |
+| document | $125 |
+
+---
+
 ## Vercel Deployment
 
-### Deploy from any Mac
+> **Always deploy from the repo root, not from inside `cpm-vercel/`.**
 
 ```bash
-# Install Vercel CLI (once per Mac)
-npm i -g vercel
-vercel login   # uses your Vercel account
-
-# Deploy
-cd ~/Documents/cpm-agent/malloy-model-git/cpm-vercel
-npm install
+cd ~/Documents/cpm-agent/malloy-model-git
 vercel --prod
 ```
 
-> **Env vars are in the Vercel dashboard** — you don't need a local `.env` to deploy.  
-> After deploying, env vars carry over automatically.
-
-### After changing Vercel source files
-1. Edit files in `~/Documents/cpm-agent/malloy-model-git/cpm-vercel/`
-2. `vercel --prod` from that directory
-3. Commit changes back to git: `git add cpm-vercel/ && git commit -m "..." && git push`
+Env vars carry over from the Vercel dashboard automatically. No local `.env` needed.
 
 ---
 
@@ -191,68 +248,36 @@ vercel --prod
 
 ### Tables
 ```sql
--- Historical CPM benchmarks (210 rows migrated June 2026)
+-- CPM benchmarks (210+ rows)
 cpm_benchmarks (id, year, month, month_name, channel, channel_label, cpm, source_note, report_date)
 UNIQUE: (year, month, channel)
 
--- Agent run log
+-- CPM report run log
 agent_runs (id, run_date, source, outcome, input_tokens, output_tokens, data_points_found, created_at)
+
+-- AI interaction tracker (23 records as of July 2026)
+ai_interactions (
+  id, project, provider, tool, task_type, description,
+  hours_estimate, hours_source, value_usd, first_pass, corrections,
+  output, notes, cost_model, cost_usd, session_id, created_at
+)
 ```
 
-### Query via API (no credentials needed)
+### Query via public API
 ```bash
-curl https://cpm-vercel.vercel.app/api/metrics
-# Returns: { stats: {...}, runHistory: [...] }
-```
-
-### Re-run migration (if needed)
-```bash
-cd ~/Documents/cpm-agent/malloy-model-git/cpm-vercel
-DATABASE_URL="postgresql://..." node scripts/migrate-to-neon.mjs
-```
-Migration is idempotent — duplicate rows are skipped via `ON CONFLICT DO NOTHING`.
-
----
-
-## Updating Scripts After Git Changes
-
-When you edit scripts on one Mac and push, update the other Mac:
-
-```bash
-# Pull latest
-cd ~/Documents/cpm-agent/malloy-model-git && git pull
-
-# Copy to working directory
-cp agent/daily-report.mjs ~/Documents/cpm-agent/agent/cpm-report-agent/
+curl https://cpm-vercel.vercel.app/api/tracker-stats   # ROI summary
+curl https://cpm-vercel.vercel.app/api/metrics          # CPM run history
 ```
 
 ---
 
-## GitHub Token Rotation
+## GitHub Token Scope Requirements
 
-Tokens expire or need rotation periodically.
+The GitHub Personal Access Token needs **both**:
+- `repo` — for pushing files and CSV backup
+- `workflow` — for pushing to `.github/workflows/`
 
-1. Go to github.com/settings/tokens → Classic tokens
-2. Generate new token with `repo` scope
-3. Update `.env` on each Mac: replace `GITHUB_TOKEN=` value
-4. Update Vercel: Settings → Environment Variables → `GITHUB_TOKEN` → Edit → Redeploy
-5. Revoke old token on GitHub
-
----
-
-## Logs
-
-| Location | Contents |
-|----------|----------|
-| `~/Documents/cpm-agent/logs/cpm-report.log` | stdout from launchd runs |
-| `~/Documents/cpm-agent/logs/cpm-report-error.log` | stderr from launchd runs |
-| Vercel dashboard → Functions → Logs | Vercel cron run logs |
-| `https://cpm-vercel.vercel.app/api/metrics` | Run history from Neon |
-
-View latest Mac log:
-```bash
-tail -50 ~/Documents/cpm-agent/logs/cpm-report.log
-```
+> **⚠️ Token rotation needed:** Token `g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` was exposed in a conversation. Generate a new one at github.com/settings/tokens and update it in Vercel env vars and local `.env`.
 
 ---
 
@@ -260,21 +285,22 @@ tail -50 ~/Documents/cpm-agent/logs/cpm-report.log
 
 | Symptom | Likely cause | Fix |
 |---------|-------------|-----|
-| DuckDB architecture error | ARM64 Mac with x86 binary | `rm -rf node_modules && npm install` |
-| GitHub 401 | Token expired or wrong | Rotate token (see above) |
-| Resend email not arriving | Wrong API key | Check resend.com dashboard → API Keys |
-| Vercel cron not firing | Cron only runs on Vercel Pro/Hobby paid plans | Check Vercel billing |
-| `git pull` fails with 401 | Old token cached in git credential | `git remote set-url origin https://TOKEN@github.com/rodbrathwaite79/cpm-malloy-model.git` |
-| launchd not triggering | Wrong Node path in plist | Check plist `ProgramArguments` — ensure it points to `$(which node)` path |
-| `dataPoints: 0` in Vercel response | No new CPM data found (normal mid-week/mid-month) | Normal — historical data still in email |
-| Neon connection error | DATABASE_URL missing or expired | Re-copy from Neon console |
+| GitHub Action gets 401 | LOG_API_KEY not set as GitHub Secret | Add at repo → Settings → Secrets → Actions |
+| GitHub Action gets 400 | Payload field name mismatch | Fields must be snake_case: `task_type`, `hours_estimate`, `value_usd` |
+| `git push` rejected (workflow scope) | Token missing `workflow` scope | Edit token at github.com/settings/tokens |
+| Vercel cron not firing | Wrong schedule or plan | Verify vercel.json cron = `0 13 * * 1`; check Vercel billing tier |
+| Report email not arriving | Wrong RESEND_API_KEY | Check resend.com → API Keys |
+| `vercel --prod` path error | Running from inside `cpm-vercel/` | Run from `malloy-model-git/` root |
+| `dataPoints: 0` | No new CPM data (normal mid-month) | Normal — history still in email |
+| Neon connection error | DATABASE_URL missing/expired | Re-copy from Neon console |
+| launchd not firing | Wrong Node path in plist | Check plist `ProgramArguments` |
 
 ---
 
-## Key Decisions Log
+## Key Design Decisions
 
-- **Resend over SendGrid/Gmail:** Gmail App Passwords blocked by Passkey login. Resend uses REST API, no SMTP/OAuth needed.
-- **Vercel over Mac launchd:** Mac must be on for launchd. Vercel runs regardless.
-- **Neon over local JSON:** Cloud-hosted, queryable from Vercel and any Mac, survives hardware failure.
-- **Option A for Guild→Neon writes:** Guild agents don't support `process.env` — Vercel handles all Neon writes instead.
-- **One git repo:** `cpm-malloy-model` holds both the Mac agent scripts (`agent/`) and the Vercel project (`cpm-vercel/`).
+- **Vercel over Mac launchd (primary):** Mac must be on for launchd. Vercel runs in cloud regardless.
+- **Neon over local JSON:** Cloud-hosted, queryable from anywhere, survives hardware failure.
+- **Rule-based insights over LLM:** Eliminated per-run API cost. Insights are deterministic and free.
+- **GitHub Actions over git hooks:** Git hooks live in `.git/` and don't sync. GitHub Actions run in the cloud and work from any machine.
+- **Weekly over daily report:** CPM prices change monthly, not daily. Weekly reduces noise and API calls.

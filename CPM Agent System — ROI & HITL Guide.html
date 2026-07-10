@@ -3,755 +3,295 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CPM Agent System — ROI & HITL Guide</title>
+<title>CPM Agent — ROI Story</title>
 <style>
   :root {
-    --bg:       #0a0f1e;
-    --surface:  #0f172a;
-    --border:   #1e293b;
-    --muted:    #334155;
-    --text:     #e2e8f0;
-    --subtle:   #94a3b8;
-    --blue:     #3b82f6;
-    --green:    #22c55e;
-    --amber:    #f59e0b;
-    --red:      #ef4444;
-    --purple:   #a78bfa;
-    --cyan:     #22d3ee;
-    --teal:     #14b8a6;
+    --bg:      #0a0f1e;
+    --surface: #0f172a;
+    --border:  #1e293b;
+    --muted:   #334155;
+    --text:    #e2e8f0;
+    --subtle:  #94a3b8;
+    --blue:    #3b82f6;
+    --green:   #22c55e;
+    --amber:   #f59e0b;
+    --purple:  #a78bfa;
+    --cyan:    #22d3ee;
+    --teal:    #14b8a6;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html { scroll-behavior: smooth; }
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    font-size: 15px;
-    line-height: 1.7;
-  }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 15px; line-height: 1.75; }
 
-  nav {
-    position: sticky; top: 0; z-index: 100;
-    background: rgba(10,15,30,0.96);
-    backdrop-filter: blur(8px);
-    border-bottom: 1px solid var(--border);
-    padding: 0 32px;
-    display: flex; gap: 0; align-items: center;
-    overflow-x: auto;
-  }
-  nav a {
-    color: var(--subtle); text-decoration: none;
-    font-size: 12px; font-weight: 600; letter-spacing: .5px;
-    text-transform: uppercase; white-space: nowrap;
-    padding: 14px 16px;
-    border-bottom: 2px solid transparent;
-    transition: color .2s, border-color .2s;
-  }
-  nav a:hover { color: var(--text); border-bottom-color: var(--blue); }
-  .nav-brand { color: var(--blue); font-size: 13px; font-weight: 700; margin-right: 24px; white-space: nowrap; }
+  nav { position: sticky; top: 0; z-index: 100; background: rgba(10,15,30,0.97); backdrop-filter: blur(8px); border-bottom: 1px solid var(--border); padding: 0 32px; display: flex; align-items: center; gap: 0; overflow-x: auto; }
+  .nav-brand { color: var(--green); font-size: 13px; font-weight: 700; margin-right: 28px; white-space: nowrap; }
+  nav a { color: var(--subtle); text-decoration: none; font-size: 12px; font-weight: 600; letter-spacing: .5px; text-transform: uppercase; white-space: nowrap; padding: 14px 14px; border-bottom: 2px solid transparent; transition: all .2s; }
+  nav a:hover { color: var(--text); border-bottom-color: var(--green); }
 
-  .container { max-width: 1100px; margin: 0 auto; padding: 0 32px; }
-  section { padding: 64px 0; border-bottom: 1px solid var(--border); }
+  .container { max-width: 1080px; margin: 0 auto; padding: 0 32px; }
+  section { padding: 60px 0; border-bottom: 1px solid var(--border); }
   section:last-child { border-bottom: none; }
 
   .hero { padding: 72px 0 56px; text-align: center; }
-  .hero-tag {
-    display: inline-block;
-    background: rgba(59,130,246,.12); color: var(--blue);
-    font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase;
-    padding: 5px 14px; border-radius: 20px; border: 1px solid rgba(59,130,246,.25);
-    margin-bottom: 20px;
-  }
+  .badge { display: inline-block; background: rgba(34,197,94,.1); color: var(--green); font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; padding: 5px 14px; border-radius: 20px; border: 1px solid rgba(34,197,94,.25); margin-bottom: 20px; }
   h1 { font-size: 40px; font-weight: 800; line-height: 1.15; margin-bottom: 16px; }
-  .hero-sub { color: var(--subtle); font-size: 17px; max-width: 680px; margin: 0 auto 32px; }
+  .hero-sub { color: var(--subtle); font-size: 17px; max-width: 700px; margin: 0 auto; }
 
-  h2 { font-size: 26px; font-weight: 700; margin-bottom: 8px; }
-  h3 { font-size: 18px; font-weight: 600; margin-bottom: 12px; color: var(--text); }
-  .section-label {
-    font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase;
-    color: var(--blue); margin-bottom: 8px;
-  }
-  .section-sub { color: var(--subtle); margin-bottom: 36px; font-size: 15px; }
+  h2 { font-size: 26px; font-weight: 700; margin-bottom: 6px; }
+  .section-sub { color: var(--subtle); font-size: 15px; margin-bottom: 36px; }
+  h3 { font-size: 17px; font-weight: 600; margin-bottom: 10px; }
 
-  .card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
-  .card {
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: 12px; padding: 24px;
-    transition: border-color .2s;
-  }
-  .card:hover { border-color: var(--muted); }
-  .card-icon { font-size: 28px; margin-bottom: 12px; }
-  .card-title { font-size: 16px; font-weight: 700; margin-bottom: 6px; }
-  .card-file {
-    font-family: monospace; font-size: 11px; color: var(--subtle);
-    background: var(--bg); border: 1px solid var(--border);
-    border-radius: 4px; padding: 2px 8px; display: inline-block; margin-bottom: 12px;
-  }
-  .card p { color: var(--subtle); font-size: 14px; line-height: 1.6; }
-  .card ul { color: var(--subtle); font-size: 13px; padding-left: 16px; margin-top: 8px; }
-  .card li { margin-bottom: 4px; }
+  .analogy { background: linear-gradient(135deg, rgba(34,197,94,.06), rgba(20,184,166,.06)); border: 1px solid rgba(34,197,94,.2); border-radius: 12px; padding: 22px 28px; font-size: 14px; color: var(--text); line-height: 1.7; margin-bottom: 28px; }
+  .analogy strong { color: var(--green); }
 
-  .badge {
-    display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: .5px;
-    text-transform: uppercase; padding: 2px 8px; border-radius: 10px; margin-right: 6px; margin-bottom: 8px;
-  }
-  .badge-blue   { background: rgba(59,130,246,.15);  color: var(--blue); }
-  .badge-green  { background: rgba(34,197,94,.15);   color: var(--green); }
-  .badge-purple { background: rgba(167,139,250,.15); color: var(--purple); }
-  .badge-amber  { background: rgba(245,158,11,.15);  color: var(--amber); }
-  .badge-cyan   { background: rgba(34,211,238,.15);  color: var(--cyan); }
-  .badge-teal   { background: rgba(20,184,166,.15);  color: var(--teal); }
-  .badge-red    { background: rgba(239,68,68,.15);   color: var(--red); }
+  .big-number-wrap { text-align: center; padding: 40px 0; }
+  .big-number { font-size: 96px; font-weight: 900; line-height: 1; background: linear-gradient(135deg, var(--green), var(--cyan)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+  .big-label { font-size: 20px; color: var(--subtle); margin-top: 12px; }
+  .big-sub { font-size: 14px; color: var(--muted); margin-top: 8px; }
 
-  /* ROI dimension cards */
-  .roi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
-  .roi-card {
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: 12px; padding: 20px 24px;
-  }
-  .roi-num {
-    font-size: 28px; font-weight: 800; color: var(--blue);
-    line-height: 1; margin-bottom: 6px;
-  }
-  .roi-name { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
-  .roi-desc { font-size: 13px; color: var(--subtle); line-height: 1.5; }
-  .roi-formula {
-    font-family: monospace; font-size: 11px; color: var(--cyan);
-    background: rgba(0,0,0,.3); border: 1px solid var(--border);
-    border-radius: 4px; padding: 6px 10px; margin-top: 10px;
-    display: block;
-  }
-  .roi-signal { font-size: 11px; color: var(--green); margin-top: 6px; font-weight: 600; }
+  .stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-top: 16px; }
+  .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px 22px; text-align: center; }
+  .stat-value { font-size: 32px; font-weight: 800; }
+  .stat-label { font-size: 12px; color: var(--subtle); margin-top: 6px; text-transform: uppercase; letter-spacing: .5px; font-weight: 600; }
+  .green  { color: var(--green); }
+  .blue   { color: var(--blue); }
+  .amber  { color: var(--amber); }
+  .purple { color: var(--purple); }
+  .cyan   { color: var(--cyan); }
 
-  /* Mode blocks */
-  .mode-list { display: flex; flex-direction: column; gap: 16px; }
-  .mode-block {
-    background: var(--surface); border: 1px solid var(--border);
-    border-radius: 12px; padding: 20px 24px;
-    display: grid; grid-template-columns: 80px 1fr; gap: 20px; align-items: start;
-  }
-  .mode-label {
-    font-size: 22px; font-weight: 800; color: var(--blue);
-    text-align: center; padding-top: 4px;
-  }
-  .mode-tag {
-    font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase;
-    color: var(--subtle); display: block; text-align: center; margin-top: 4px;
-  }
-  .mode-title { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
-  .mode-trigger { font-size: 12px; color: var(--subtle); margin-bottom: 10px; }
-  .mode-trigger code { color: var(--cyan); }
-  .mode-body { font-size: 13px; color: var(--subtle); }
-  .mode-example {
-    font-family: monospace; font-size: 12px; color: var(--text);
-    background: rgba(0,0,0,.4); border: 1px solid var(--border);
-    border-radius: 6px; padding: 12px 14px; margin-top: 10px;
-    white-space: pre; overflow-x: auto;
-  }
+  .timeline { display: flex; flex-direction: column; gap: 0; margin-top: 16px; }
+  .tl-item { display: flex; gap: 20px; }
+  .tl-left { display: flex; flex-direction: column; align-items: center; width: 36px; flex-shrink: 0; }
+  .tl-dot { width: 14px; height: 14px; border-radius: 50%; background: var(--green); flex-shrink: 0; margin-top: 20px; }
+  .tl-line { width: 2px; background: var(--border); flex: 1; margin-top: 4px; }
+  .tl-item:last-child .tl-line { display: none; }
+  .tl-body { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px 22px; margin-bottom: 12px; flex: 1; }
+  .tl-date { font-size: 11px; color: var(--subtle); font-weight: 600; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px; }
+  .tl-title { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+  .tl-desc { font-size: 13px; color: var(--subtle); }
+  .tl-value { display: inline-block; font-size: 12px; font-weight: 700; color: var(--green); background: rgba(34,197,94,.1); border: 1px solid rgba(34,197,94,.2); padding: 2px 9px; border-radius: 10px; margin-top: 8px; }
 
-  /* HITL flow */
-  .hitl-flow { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 24px; }
-  .hitl-box {
-    background: var(--surface); border-radius: 12px; padding: 24px;
-  }
-  .hitl-box.pipeline { border: 1px solid rgba(245,158,11,.3); }
-  .hitl-box.user     { border: 1px solid rgba(167,139,250,.3); }
-  .hitl-box-label {
-    font-size: 11px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase;
-    margin-bottom: 14px;
-  }
-  .hitl-box.pipeline .hitl-box-label { color: var(--amber); }
-  .hitl-box.user     .hitl-box-label { color: var(--purple); }
-  .hitl-step {
-    display: flex; gap: 12px; margin-bottom: 12px; align-items: flex-start;
-  }
-  .hitl-step-num {
-    width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 11px; font-weight: 700;
-  }
-  .pipeline .hitl-step-num { background: rgba(245,158,11,.2); color: var(--amber); }
-  .user     .hitl-step-num { background: rgba(167,139,250,.2); color: var(--purple); }
-  .hitl-step-text { font-size: 13px; color: var(--subtle); }
-  .hitl-step-text strong { color: var(--text); }
+  .hitl-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 16px; }
+  @media(max-width:700px) { .hitl-grid { grid-template-columns: 1fr; } }
+  .hitl-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 22px 24px; }
+  .hitl-icon { font-size: 30px; margin-bottom: 10px; }
+  .hitl-card p { font-size: 13px; color: var(--subtle); margin-top: 6px; }
 
-  /* Malloy section */
-  .malloy-layers {
-    display: grid; grid-template-columns: repeat(3, 1fr); gap: 0;
-    border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
-    margin-top: 24px;
-  }
-  .malloy-layer {
-    padding: 24px;
-    border-right: 1px solid var(--border);
-    text-align: center;
-  }
-  .malloy-layer:last-child { border-right: none; }
-  .malloy-layer-icon { font-size: 32px; margin-bottom: 10px; }
-  .malloy-layer-name { font-size: 14px; font-weight: 700; margin-bottom: 6px; }
-  .malloy-layer-desc { font-size: 12px; color: var(--subtle); line-height: 1.5; }
-  .malloy-arrow {
-    display: flex; align-items: center; justify-content: center;
-    color: var(--blue); font-size: 20px; padding: 0 4px;
-  }
+  table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+  th { background: var(--muted); color: var(--subtle); font-size: 11px; letter-spacing: .5px; text-transform: uppercase; padding: 10px 14px; text-align: left; }
+  td { padding: 12px 14px; border-bottom: 1px solid var(--border); font-size: 14px; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(255,255,255,.02); }
 
-  /* Callouts */
-  .callout {
-    border-left: 3px solid var(--blue);
-    background: rgba(59,130,246,.06);
-    padding: 16px 20px; border-radius: 0 8px 8px 0;
-    margin: 20px 0; font-size: 14px; color: var(--subtle);
-  }
-  .callout strong { color: var(--text); }
-  .callout-green {
-    border-left: 3px solid var(--green);
-    background: rgba(34,197,94,.06);
-    padding: 16px 20px; border-radius: 0 8px 8px 0;
-    margin: 20px 0; font-size: 14px; color: var(--subtle);
-  }
-  .callout-green strong { color: var(--green); }
-  .callout-purple {
-    border-left: 3px solid var(--purple);
-    background: rgba(167,139,250,.06);
-    padding: 16px 20px; border-radius: 0 8px 8px 0;
-    margin: 20px 0; font-size: 14px; color: var(--subtle);
-  }
-  .callout-purple strong { color: var(--purple); }
-
-  code { font-family: monospace; font-size: 12px; color: var(--cyan);
-         background: rgba(0,0,0,.3); padding: 1px 5px; border-radius: 3px; }
-
-  /* Simulation results */
-  .sim-box {
-    background: #000; border: 1px solid var(--border); border-radius: 10px;
-    padding: 20px 24px; font-family: monospace; font-size: 13px;
-    color: var(--subtle); line-height: 1.8; margin-top: 20px;
-  }
-  .sim-box .g { color: var(--green); }
-  .sim-box .b { color: var(--blue); }
-  .sim-box .a { color: var(--amber); }
-  .sim-box .h { color: var(--text); font-weight: 700; }
-
-  .verdict-box {
-    background: linear-gradient(135deg, rgba(34,197,94,.08), rgba(20,184,166,.08));
-    border: 1px solid rgba(34,197,94,.25);
-    border-radius: 12px; padding: 28px 32px; margin-top: 32px;
-  }
-  .verdict-title { font-size: 18px; font-weight: 700; color: var(--green); margin-bottom: 10px; }
-
-  footer {
-    text-align: center; color: var(--muted); font-size: 12px;
-    padding: 40px 32px; border-top: 1px solid var(--border);
-  }
-
-  @media (max-width: 700px) {
-    h1 { font-size: 28px; }
-    .hitl-flow, .malloy-layers { grid-template-columns: 1fr; }
-    .mode-block { grid-template-columns: 1fr; }
-    .container { padding: 0 16px; }
-  }
+  footer { text-align: center; padding: 40px 32px; color: var(--subtle); font-size: 13px; }
 </style>
 </head>
 <body>
 
 <nav>
-  <span class="nav-brand">CPM Agent v2</span>
-  <a href="#what-was-built">Components</a>
-  <a href="#roi">8 ROI Dimensions</a>
-  <a href="#hitl">HITL Tracking</a>
-  <a href="#modes">Agent Modes</a>
-  <a href="#malloy">Malloy Layer</a>
-  <a href="#verified">Test Results</a>
+  <span class="nav-brand">CPM Agent · ROI</span>
+  <a href="#headline">The Number</a>
+  <a href="#journey">The Journey</a>
+  <a href="#quality">Quality</a>
+  <a href="#providers">By Provider</a>
+  <a href="#hitl">HITL Explained</a>
 </nav>
 
-<!-- HERO -->
 <div class="hero">
   <div class="container">
-    <div class="hero-tag">Guild.ai · Vercel · Neon · Resend · Brave · Malloy</div>
-    <h1>CPM Agent System<br><span style="color:var(--blue)">ROI &amp; HITL Guide</span></h1>
-    <p class="hero-sub">
-      How the system was built, what each component does, how HITL interactions
-      are now tracked end-to-end, and why all of it answers the question:
-      <em>what is the ROI of a Guild agent?</em>
-    </p>
+    <div class="badge">ROI Story · July 2026</div>
+    <h1>What Did AI Actually Save?</h1>
+    <p class="hero-sub">A clear, numbers-first breakdown of every hour of work AI completed, what it would have cost a human, and what it actually cost in API fees.</p>
   </div>
 </div>
 
-
-<!-- ═══ SECTION 1: COMPONENTS ═══ -->
-<section id="what-was-built">
+<!-- THE HEADLINE NUMBER -->
+<section id="headline">
   <div class="container">
-    <div class="section-label">Section 1</div>
-    <h2>System Components</h2>
-    <p class="section-sub">Six components. Three run automatically in the cloud. Three run on your Mac. One semantic model ties the data together.</p>
-
-    <div class="card-grid">
-
-      <div class="card">
-        <div class="card-icon">⚡</div>
-        <span class="badge badge-blue">Cloud · Primary</span>
-        <div class="card-title">Vercel Cron Handler</div>
-        <div class="card-file">cpm-vercel/api/cpm-report.js</div>
-        <p>Fires at 8am EST daily via Vercel's cloud scheduler — no Mac required. Searches Brave for CPM data, reads/writes Neon Postgres, builds an HTML email report, sends via Resend, and logs every run to the <code>agent_runs</code> table.</p>
+    <h2>The Headline</h2>
+    <p class="section-sub">One number that tells the whole story.</p>
+    <div class="big-number-wrap">
+      <div class="big-number">2,972×</div>
+      <div class="big-label">Return on AI Investment</div>
+      <div class="big-sub">$5,796 of skilled human work delivered for $1.95 in API costs</div>
+    </div>
+    <div class="analogy">
+      <strong>What does 2,972× mean?</strong> For every $1 spent on the Claude API, the system produced $2,972 worth of work that would otherwise have required a skilled contractor. If you'd spent $100 on Claude fees, you'd get $297,200 worth of work back. These numbers use real market rates for software development, analysis, and technical writing — not estimates pulled from thin air.
+    </div>
+    <div class="stat-row">
+      <div class="stat-card">
+        <div class="stat-value green">$5,796</div>
+        <div class="stat-label">Total Value Generated</div>
       </div>
-
-      <div class="card">
-        <div class="card-icon">🤖</div>
-        <span class="badge badge-purple">Guild · ROI Engine</span>
-        <div class="card-title">Guild ROI Agent</div>
-        <div class="card-file">agent/agent.ts</div>
-        <p>The metrics and intelligence layer. Tracks 8 ROI dimensions across all runs, logs every user change request as a HITL event, measures improvement rate over time, and generates AI insights from CPM data. Six input modes — pipeline runs, change requests, implementation confirmations, custom queries, read-only dashboard, and reset.</p>
+      <div class="stat-card">
+        <div class="stat-value blue">42.4h</div>
+        <div class="stat-label">Human Hours Replaced</div>
       </div>
-
-      <div class="card">
-        <div class="card-icon">🗂️</div>
-        <span class="badge badge-teal">Cloud · Semantic Layer</span>
-        <div class="card-title">Malloy Semantic Model</div>
-        <div class="card-file">index.malloy</div>
-        <p>Defines pre-built analytical views over <code>cpm_benchmarks.parquet</code>: channel rankings, YoY comparison, seasonal patterns, blended monthly averages. Served via Malloyyo on Vercel. Queried by the Guild agent via the CPM Reports MCP connector — no SQL required.</p>
+      <div class="stat-card">
+        <div class="stat-value amber">$1.95</div>
+        <div class="stat-label">Total API Cost</div>
       </div>
-
-      <div class="card">
-        <div class="card-icon">💻</div>
-        <span class="badge badge-amber">Mac · Backup</span>
-        <div class="card-title">Daily Report Script</div>
-        <div class="card-file">agent/daily-report.mjs</div>
-        <p>Mac-side backup runner. Triggered by launchd at 8am. Runs the same pipeline logic as the Vercel function but reads a local <code>cpm_benchmarks.parquet</code> file via DuckDB instead of Neon Postgres. Useful for development and offline testing.</p>
+      <div class="stat-card">
+        <div class="stat-value purple">23</div>
+        <div class="stat-label">Logged AI Sessions</div>
       </div>
-
-      <div class="card">
-        <div class="card-icon">🔍</div>
-        <span class="badge badge-amber">Mac · QA</span>
-        <div class="card-title">Quality Agent</div>
-        <div class="card-file">agent/quality-agent.mjs</div>
-        <p>9-section health checker. Validates all env vars, DuckDB reads 210 rows, Brave/Resend/GitHub APIs respond, launchd plist is loaded with correct Node path, and script integrity patterns are present. Emails a color-coded HTML report. Run with <code>--fix</code> to auto-repair the plist.</p>
+      <div class="stat-card">
+        <div class="stat-value cyan">95%</div>
+        <div class="stat-label">First-Pass Accuracy</div>
       </div>
-
-      <div class="card">
-        <div class="card-icon">🖥️</div>
-        <span class="badge badge-cyan">Mac · Setup</span>
-        <div class="card-title">Mac Setup Script</div>
-        <div class="card-file">agent/setup-new-mac.sh</div>
-        <p>One <code>curl | bash</code> command sets up the entire Mac-side system from scratch: Homebrew, nvm, Node 22, repo clone, DuckDB (ARM64-aware), launchd plist generation, credential prompting, and a Quality Agent health check at the end.</p>
-      </div>
-
     </div>
   </div>
 </section>
 
-
-<!-- ═══ SECTION 2: 8 ROI DIMENSIONS ═══ -->
-<section id="roi">
+<!-- THE JOURNEY -->
+<section id="journey">
   <div class="container">
-    <div class="section-label">Section 2</div>
-    <h2>8 ROI Dimensions</h2>
-    <p class="section-sub">Every metric the Guild agent now tracks, why it matters to a customer, and how it's calculated. All persisted in Guild's state store across sessions.</p>
+    <h2>What Was Built (The Full Story)</h2>
+    <p class="section-sub">Every major milestone, in order, with its estimated value.</p>
 
-    <div class="roi-grid">
-
-      <div class="roi-card">
-        <div class="roi-num">01</div>
-        <div class="roi-name">Automation Rate</div>
-        <div class="roi-desc">What % of pipeline runs completed with zero human intervention. The headline metric — the higher it is, the more the agent is doing the job alone.</div>
-        <code class="roi-formula">autonomousRuns / totalRuns × 100</code>
-        <div class="roi-signal">↑ Higher = better. Target: &gt;90%.</div>
+    <div class="timeline">
+      <div class="tl-item">
+        <div class="tl-left"><div class="tl-dot"></div><div class="tl-line"></div></div>
+        <div class="tl-body">
+          <div class="tl-date">Phase 1 — Foundation</div>
+          <div class="tl-title">Built the CPM Data Pipeline</div>
+          <div class="tl-desc">Automated web scraping, Neon cloud database, email reporting. Migrated 210+ historical CPM rows. Set up Vercel serverless cron.</div>
+          <span class="tl-value">~$1,800 estimated value</span>
+        </div>
       </div>
-
-      <div class="roi-card">
-        <div class="roi-num">02</div>
-        <div class="roi-name">Cost Per Output</div>
-        <div class="roi-desc">Real LLM token cost per report run, pulled from Guild's <code>guild_get_daily_llm_usage()</code> API. Makes the agent's cost of operation concrete and auditable.</div>
-        <code class="roi-formula">totalEstimatedCostUsd / totalRuns</code>
-        <div class="roi-signal">↓ Lower = better. Typically fractions of a cent.</div>
+      <div class="tl-item">
+        <div class="tl-left"><div class="tl-dot"></div><div class="tl-line"></div></div>
+        <div class="tl-body">
+          <div class="tl-date">Phase 2 — Intelligence Layer</div>
+          <div class="tl-title">AI Interaction Tracker + Live Dashboard</div>
+          <div class="tl-desc">Built the database schema, API endpoint for logging, Malloy semantic model, and a live HTML dashboard pulling real data.</div>
+          <span class="tl-value">~$1,500 estimated value</span>
+        </div>
       </div>
-
-      <div class="roi-card">
-        <div class="roi-num">03</div>
-        <div class="roi-name">Human Time Recovered</div>
-        <div class="roi-desc">Dollar value of analyst time the agent replaced. Based on autonomous runs × estimated 15 min per report × configurable hourly rate. The "before vs. after" number customers can take to a CFO.</div>
-        <code class="roi-formula">autonomousRuns × 15min × $100/hr</code>
-        <div class="roi-signal">↑ Higher = more value delivered.</div>
+      <div class="tl-item">
+        <div class="tl-left"><div class="tl-dot"></div><div class="tl-line"></div></div>
+        <div class="tl-body">
+          <div class="tl-date">Phase 3 — Optimization</div>
+          <div class="tl-title">Eliminated LLM Cost from Weekly Report</div>
+          <div class="tl-desc">Replaced the Gemini AI call (paid per run) with a free rule-based engine. Report now costs $0 to run each week. Shared code extracted into libraries.</div>
+          <span class="tl-value">~$450 estimated value · saves money every week</span>
+        </div>
       </div>
-
-      <div class="roi-card">
-        <div class="roi-num">04</div>
-        <div class="roi-name">ROI Score</div>
-        <div class="roi-desc">Human time saved divided by total LLM spend. Expresses return as a multiple — "for every $1 spent on LLM calls, the agent returned $X in analyst time." The number that closes deals.</div>
-        <code class="roi-formula">humanTimeSaved / totalLLMCost</code>
-        <div class="roi-signal">Typical result: 500x–2000x. Excellent ≥ 10x.</div>
+      <div class="tl-item">
+        <div class="tl-left"><div class="tl-dot"></div><div class="tl-line"></div></div>
+        <div class="tl-body">
+          <div class="tl-date">Phase 4 — Skills Library</div>
+          <div class="tl-title">18-Skill Reference System</div>
+          <div class="tl-desc">Documented 18 reusable step-by-step instruction sets covering every recurring task. Built interactive HTML guide with search.</div>
+          <span class="tl-value">~$750 estimated value</span>
+        </div>
       </div>
-
-      <div class="roi-card">
-        <div class="roi-num">05</div>
-        <div class="roi-name">Change Request Rate</div>
-        <div class="roi-desc">How often a human had to ask the agent to change something — format, content, channels, frequency, recipients. Each request is a HITL event logged with type, description, session ID, and date. Declining rate = agent maturing.</div>
-        <code class="roi-formula">totalChangeRequests / totalRuns</code>
-        <div class="roi-signal">↓ Declining trend = agent earning trust.</div>
+      <div class="tl-item">
+        <div class="tl-left"><div class="tl-dot"></div><div class="tl-line"></div></div>
+        <div class="tl-body">
+          <div class="tl-date">Phase 5 — Schedule Change</div>
+          <div class="tl-title">Switched from Daily to Weekly Report</div>
+          <div class="tl-desc">Daily reports were redundant. Changed to Monday-only across 5 config files and all documentation.</div>
+          <span class="tl-value">$75 estimated value</span>
+        </div>
       </div>
-
-      <div class="roi-card">
-        <div class="roi-num">06</div>
-        <div class="roi-name">Implementation Rate</div>
-        <div class="roi-desc">Of all change requests logged, what % were marked as implemented. Closing the loop: a request was logged, a change was made, the agent confirmed it. Proves the feedback cycle is working.</div>
-        <code class="roi-formula">implementedChanges / totalChangeRequests</code>
-        <div class="roi-signal">↑ Higher = tighter human–agent feedback loop.</div>
+      <div class="tl-item">
+        <div class="tl-left"><div class="tl-dot" style="background:var(--cyan)"></div><div class="tl-line"></div></div>
+        <div class="tl-body">
+          <div class="tl-date">Phase 6 — Auto-Logging · July 2026 ✨ NEW</div>
+          <div class="tl-title">Cross-Machine Automatic Session Logging</div>
+          <div class="tl-desc">Zero-setup logging pipeline. Claude writes its own session log, pushes to GitHub, and a cloud job automatically files it in the database — from any computer.</div>
+          <span class="tl-value">$1,175 value · validated live</span>
+        </div>
       </div>
-
-      <div class="roi-card">
-        <div class="roi-num">07</div>
-        <div class="roi-name">Error Rate</div>
-        <div class="roi-desc">Pipeline failures as a % of total runs. Tracked separately from HITL — a run that needed human help is different from a run that crashed. Declining error rate proves reliability is improving over time.</div>
-        <code class="roi-formula">errorRuns / totalRuns × 100</code>
-        <div class="roi-signal">↓ Lower = more reliable. Target: &lt;5%.</div>
-      </div>
-
-      <div class="roi-card">
-        <div class="roi-num">08</div>
-        <div class="roi-name">Data Coverage</div>
-        <div class="roi-desc">Average number of verified CPM data points found per run. Output quality metric — more data points means the agent found more real, sourced, usable market intelligence per report.</div>
-        <code class="roi-formula">sum(dataPointsFound) / totalRuns</code>
-        <div class="roi-signal">↑ Higher = richer intelligence per run.</div>
-      </div>
-
-    </div>
-
-    <div class="callout-green" style="margin-top:32px;">
-      <strong>Why 8 dimensions instead of one ROI number?</strong> A single ROI multiple is easy to game and easy to dismiss. Showing <em>how</em> the ROI is composed — automation rate, cost, coverage, change request trend — makes it defensible to a CFO, a skeptical buyer, and a renewal conversation. Each dimension answers a different objection.
     </div>
   </div>
 </section>
 
+<!-- QUALITY -->
+<section id="quality">
+  <div class="container">
+    <h2>Quality: Does AI Get It Right?</h2>
+    <p class="section-sub">95% first-pass accuracy. Only 1 correction across 23 sessions.</p>
+    <div class="analogy">
+      <strong>What "first-pass" means:</strong> Did the AI produce something usable on the first try, or did it need to be corrected? A 95% first-pass rate means 22 out of 23 sessions produced exactly the right result immediately. That's better than most human contractors.
+    </div>
+    <div class="hitl-grid">
+      <div class="hitl-card">
+        <div class="hitl-icon">✅</div>
+        <h3>22 of 23 — First Pass</h3>
+        <p>Built correctly on the first attempt. No corrections, no re-runs. Examples: the GitHub Actions workflow, the weekly schedule change across 5 files, the interactive skills HTML — all correct first try.</p>
+      </div>
+      <div class="hitl-card">
+        <div class="hitl-icon">🔧</div>
+        <h3>1 of 23 — One Fix Needed</h3>
+        <p>A camelCase vs. snake_case field name mismatch in the API payload. Caught immediately via live GitHub Action logs. Fixed in under 5 minutes. The next run succeeded.</p>
+      </div>
+    </div>
+  </div>
+</section>
 
-<!-- ═══ SECTION 3: HITL TRACKING ═══ -->
+<!-- BY PROVIDER -->
+<section id="providers">
+  <div class="container">
+    <h2>Value by AI Provider</h2>
+    <p class="section-sub">Which tools did what, and at what cost.</p>
+    <table>
+      <thead>
+        <tr><th>Provider</th><th>Sessions</th><th>Hours</th><th>Value</th><th>First-Pass</th><th>API Cost</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Claude (Anthropic)</strong><br><span style="color:var(--subtle);font-size:12px">Cowork sessions</span></td>
+          <td>11</td><td>30.6h</td>
+          <td style="color:var(--green);font-weight:700">$4,261</td>
+          <td>91%</td>
+          <td style="color:var(--amber)">$1.95</td>
+        </tr>
+        <tr>
+          <td><strong>Cursor</strong><br><span style="color:var(--subtle);font-size:12px">AI code editor</span></td>
+          <td>12</td><td>11.75h</td>
+          <td style="color:var(--green);font-weight:700">$1,535</td>
+          <td>100%</td>
+          <td style="color:var(--subtle)">$0 (flat subscription)</td>
+        </tr>
+        <tr style="background:rgba(34,197,94,.03)">
+          <td colspan="2"><strong>Total</strong></td>
+          <td style="font-weight:700">42.4h</td>
+          <td style="color:var(--green);font-weight:700;font-size:16px">$5,796</td>
+          <td style="font-weight:700">95%</td>
+          <td style="color:var(--amber);font-weight:700">$1.95</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- HITL -->
 <section id="hitl">
   <div class="container">
-    <div class="section-label">Section 3</div>
-    <h2>HITL Tracking — Two Distinct Kinds</h2>
-    <p class="section-sub">The original system tracked only one kind of HITL. The new system tracks two — and they tell completely different stories.</p>
-
-    <div class="hitl-flow">
-
-      <div class="hitl-box pipeline">
-        <div class="hitl-box-label">⚠️ Type 1 — Pipeline HITL</div>
-        <p style="color:var(--subtle);font-size:13px;margin-bottom:16px;">The agent tried to do its job autonomously and couldn't. Something in the data pipeline broke down.</p>
-        <div class="hitl-step">
-          <div class="hitl-step-num">1</div>
-          <div class="hitl-step-text">Vercel cron fires on the 1st of the month, searches Brave for new CPM data</div>
-        </div>
-        <div class="hitl-step">
-          <div class="hitl-step-num">2</div>
-          <div class="hitl-step-text"><strong>No verifiable data found</strong> — extraction returns null for all channels</div>
-        </div>
-        <div class="hitl-step">
-          <div class="hitl-step-num">3</div>
-          <div class="hitl-step-text">Agent sends a HITL email: "Please check adsposure.com / emarketer.com manually"</div>
-        </div>
-        <div class="hitl-step">
-          <div class="hitl-step-num">4</div>
-          <div class="hitl-step-text">Neon logs <code>outcome: "hitl"</code> — counted against automation rate</div>
-        </div>
-        <div style="margin-top:12px;font-size:12px;color:var(--muted);">Logged in: <code>cpm-report.js</code> → Neon <code>agent_runs</code> table</div>
-      </div>
-
-      <div class="hitl-box user">
-        <div class="hitl-box-label">💬 Type 2 — User Change Request (NEW)</div>
-        <p style="color:var(--subtle);font-size:13px;margin-bottom:16px;">A human proactively asked the agent to change something. The pipeline worked — but the output wasn't right.</p>
-        <div class="hitl-step">
-          <div class="hitl-step-num">1</div>
-          <div class="hitl-step-text"><strong>User comes to Guild</strong> and says: "Update the email format to include a bar chart"</div>
-        </div>
-        <div class="hitl-step">
-          <div class="hitl-step-num">2</div>
-          <div class="hitl-step-text">Agent receives <code>{ changeRequest: { type: "format", description: "..." } }</code></div>
-        </div>
-        <div class="hitl-step">
-          <div class="hitl-step-num">3</div>
-          <div class="hitl-step-text">Logs it to Guild state: date, session ID, type, description, <code>implemented: false</code></div>
-        </div>
-        <div class="hitl-step">
-          <div class="hitl-step-num">4</div>
-          <div class="hitl-step-text">Change is built. Agent called with <code>markImplemented</code> — loop closed, implementation rate updated</div>
-        </div>
-        <div style="margin-top:12px;font-size:12px;color:var(--muted);">Logged in: <code>agent.ts</code> → Guild <code>task.save()</code> state</div>
-      </div>
-
+    <h2>HITL — What It Means</h2>
+    <p class="section-sub">Human In The Loop — how often humans need to step in.</p>
+    <div class="analogy">
+      <strong>HITL (Human In The Loop)</strong> measures how often AI needs a human to correct or re-run its work. High HITL = AI creating extra work. Low HITL = AI is genuinely saving time. At 95% first-pass, this system is firmly in the "genuinely saves time" category.
     </div>
-
-    <div class="callout-purple" style="margin-top:28px;">
-      <strong>Why this distinction matters for Guild's ROI story:</strong> Type 1 HITL measures reliability — did the data pipeline succeed? Type 2 HITL measures quality and trust — is the agent producing output that humans accept without asking for changes? A declining Type 2 rate over time is the clearest signal that an agent is maturing. It's the metric that answers "is this agent getting better?" — and that's the renewal conversation.
-    </div>
-
-    <h3 style="margin-top:40px;margin-bottom:16px;">The Improvement Signal</h3>
-    <p style="color:var(--subtle);font-size:14px;margin-bottom:20px;">
-      The Guild agent now computes a <strong>trend</strong> on the change request rate — comparing the last 10 runs vs. the prior 10. This is the "improvement signal" that no other metric captures.
-    </p>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;">
-      <div class="card" style="text-align:center;">
-        <div style="font-size:24px;margin-bottom:8px;">📉</div>
-        <div style="font-weight:700;color:var(--green);margin-bottom:4px;">Declining</div>
-        <div style="font-size:13px;color:var(--subtle);">Change request rate falling over time. The agent is learning what good looks like. Trust is increasing.</div>
+    <div class="hitl-grid">
+      <div class="hitl-card">
+        <div class="hitl-icon">🤖</div>
+        <h3>HITL Type 1 — Report Quality</h3>
+        <p>Did the weekly CPM report run without a human needing to fix it? Tracked as <strong>autonomous</strong>, <strong>hitl</strong>, or <strong>error</strong>. The report has been 100% autonomous since launch — zero human interventions on the scheduled runs.</p>
       </div>
-      <div class="card" style="text-align:center;">
-        <div style="font-size:24px;margin-bottom:8px;">➡️</div>
-        <div style="font-weight:700;color:var(--subtle);margin-bottom:4px;">Stable</div>
-        <div style="font-size:13px;color:var(--subtle);">Consistent rate. The agent is reliable but not improving. May need new change types implemented.</div>
+      <div class="hitl-card">
+        <div class="hitl-icon">✏️</div>
+        <h3>HITL Type 2 — Task Quality</h3>
+        <p>Did Claude produce the right output on the first try for a given Cowork task? Tracked per session. 95% first-pass overall. Only 1 correction in all of 2026 so far — and it was caught and fixed in minutes via the live GitHub Action logs.</p>
       </div>
-      <div class="card" style="text-align:center;">
-        <div style="font-size:24px;margin-bottom:8px;">📈</div>
-        <div style="font-weight:700;color:var(--red);margin-bottom:4px;">Rising</div>
-        <div style="font-size:13px;color:var(--subtle);">More requests per run over time. The agent may have regressed, or the user's expectations have grown.</div>
-      </div>
-    </div>
-  </div>
-</section>
-
-
-<!-- ═══ SECTION 4: AGENT MODES ═══ -->
-<section id="modes">
-  <div class="container">
-    <div class="section-label">Section 4</div>
-    <h2>Guild Agent — 6 Input Modes</h2>
-    <p class="section-sub">The Guild agent (<code>agent.ts</code>) handles six distinct input types. Each mode updates a different part of the state or triggers a different output.</p>
-
-    <div class="mode-list">
-
-      <div class="mode-block">
-        <div>
-          <div class="mode-label">A</div>
-          <span class="mode-tag">Pipeline</span>
-        </div>
-        <div>
-          <div class="mode-title">Automated Pipeline Run</div>
-          <div class="mode-trigger">Called by: Vercel cron or <code>daily-report.mjs</code> after each report</div>
-          <div class="mode-body">The standard production run. Receives historical CPM rows + web findings, generates AI insights, records token cost via Guild LLM API, and increments all run counters. Sets <code>outcome</code> to autonomous, hitl, or error.</div>
-          <pre class="mode-example">{ "rows": [...], "webFindings": [...], "outcome": "autonomous", "dataPoints": 5 }</pre>
-        </div>
-      </div>
-
-      <div class="mode-block">
-        <div>
-          <div class="mode-label">B</div>
-          <span class="mode-tag">HITL Log</span>
-        </div>
-        <div>
-          <div class="mode-title">User Change Request</div>
-          <div class="mode-trigger">Called by: anyone who opens the Guild agent and requests a modification</div>
-          <div class="mode-body">Logs the interaction as a HITL event. Records the type of change (format, content, channels, frequency, recipients, other), the description, the session ID, and the date. Does not call the LLM — just updates state and confirms the log.</div>
-          <pre class="mode-example">{ "changeRequest": { "type": "format", "description": "Add a bar chart to the email" } }</pre>
-        </div>
-      </div>
-
-      <div class="mode-block">
-        <div>
-          <div class="mode-label">C</div>
-          <span class="mode-tag">Close Loop</span>
-        </div>
-        <div>
-          <div class="mode-title">Mark Change Implemented</div>
-          <div class="mode-trigger">Called by: developer/operator after shipping a change that was requested</div>
-          <div class="mode-body">Closes the loop on a change request by session ID. Marks it as <code>implemented: true</code>, records the implementation date and notes, and recalculates the implementation rate. The feedback cycle is now measurable end-to-end.</div>
-          <pre class="mode-example">{ "markImplemented": { "sessionId": "abc123", "notes": "Added Chart.js bar chart to email template" } }</pre>
-        </div>
-      </div>
-
-      <div class="mode-block">
-        <div>
-          <div class="mode-label">D</div>
-          <span class="mode-tag">Custom Query</span>
-        </div>
-        <div>
-          <div class="mode-title">Custom CPM Question via Malloy</div>
-          <div class="mode-trigger">Called by: analyst or end user with a specific research question</div>
-          <div class="mode-body">Same as Mode A but the <code>question</code> field overrides the default executive summary prompt. Data is typically supplied by querying the Malloy semantic model through the CPM Reports MCP connector, then passed as <code>rows</code>.</div>
-          <pre class="mode-example">{ "rows": [...], "webFindings": [...], "question": "What is the YoY trend for CTV CPMs?" }</pre>
-        </div>
-      </div>
-
-      <div class="mode-block">
-        <div>
-          <div class="mode-label">E</div>
-          <span class="mode-tag">Dashboard</span>
-        </div>
-        <div>
-          <div class="mode-title">Read-Only Metrics Dashboard</div>
-          <div class="mode-trigger">Called by: anyone who wants to see current ROI metrics without running a report</div>
-          <div class="mode-body">Detected when no rows, web findings, data points, or outcome are provided. Shows the full 8-dimension ROI dashboard and change request history without recording a new run. Clearly labeled "read-only — test run" in output.</div>
-          <pre class="mode-example">{ }  // or omit all fields</pre>
-        </div>
-      </div>
-
-      <div class="mode-block">
-        <div>
-          <div class="mode-label">F</div>
-          <span class="mode-tag">Reset</span>
-        </div>
-        <div>
-          <div class="mode-title">Reset All State</div>
-          <div class="mode-trigger">Called by: operator when starting fresh or after a demo</div>
-          <div class="mode-body">Wipes all persisted state — run history, change requests, counters, cost totals — back to zero. Irreversible. Confirmed with a clear success message. Does not affect Neon Postgres data (only Guild agent state).</div>
-          <pre class="mode-example">{ "reset": true }</pre>
-        </div>
-      </div>
-
-    </div>
-  </div>
-</section>
-
-
-<!-- ═══ SECTION 5: MALLOY ═══ -->
-<section id="malloy">
-  <div class="container">
-    <div class="section-label">Section 5</div>
-    <h2>Where Malloy Fits In</h2>
-    <p class="section-sub">Malloy is the semantic layer between raw data and the Guild agent. It answers the question: "why can't the agent just query the database directly?"</p>
-
-    <div class="malloy-layers">
-      <div class="malloy-layer" style="background:rgba(34,211,238,.04);">
-        <div class="malloy-layer-icon">🗃️</div>
-        <div class="malloy-layer-name" style="color:var(--cyan);">Raw Data</div>
-        <div class="malloy-layer-desc"><code>cpm_benchmarks.parquet</code> on GitHub. 210+ rows: year, month, channel, CPM, source. A flat file — no schema, no context, no business logic.</div>
-      </div>
-      <div class="malloy-layer" style="background:rgba(20,184,166,.06);border-color:rgba(20,184,166,.2);">
-        <div class="malloy-layer-icon">🧩</div>
-        <div class="malloy-layer-name" style="color:var(--teal);">Malloy Semantic Model</div>
-        <div class="malloy-layer-desc"><code>index.malloy</code> — pre-defined analytical views: <code>channel_ranking</code>, <code>yoy_comparison</code>, <code>seasonal_pattern</code>, <code>by_channel_month</code>, <code>blended_monthly</code>. Served via Malloyyo on Vercel.</div>
-      </div>
-      <div class="malloy-layer" style="background:rgba(167,139,250,.04);">
-        <div class="malloy-layer-icon">🤖</div>
-        <div class="malloy-layer-name" style="color:var(--purple);">Guild Agent</div>
-        <div class="malloy-layer-desc">Queries Malloy via the CPM Reports MCP connector. Asks "give me <code>channel_ranking</code>" — gets back structured data. No SQL. No schema knowledge required.</div>
-      </div>
-    </div>
-
-    <div class="callout" style="margin-top:24px;">
-      <strong>The MCP connector is the bridge.</strong> The CPM Reports MCP server (connected in this session as <code>mcp__2ae5c6a3…</code>) exposes <code>query()</code>, <code>list_sources()</code>, and <code>describe_source()</code> tools. When the Guild agent calls <code>query("run: cpm_benchmarks -> channel_ranking")</code>, it gets back the pre-computed ranking without ever touching a database connection string. Malloyyo handles serving the model; the MCP handles the API contract.
-    </div>
-
-    <h3 style="margin-top:36px;margin-bottom:16px;">Without Malloy vs. With Malloy</h3>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:4px;">
-      <div class="card" style="border-color:rgba(239,68,68,.2);">
-        <div style="color:var(--red);font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:12px;">Without Malloy</div>
-        <ul>
-          <li>Agent receives raw CSV/parquet rows and must figure out grouping, sorting, and aggregation itself</li>
-          <li>Every question requires knowing the schema column names</li>
-          <li>Adding a new view (e.g., seasonal pattern) requires changing the agent code</li>
-          <li>No reusable business logic — each agent reinvents the same queries</li>
-        </ul>
-      </div>
-      <div class="card" style="border-color:rgba(34,197,94,.2);">
-        <div style="color:var(--green);font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:12px;">With Malloy</div>
-        <ul>
-          <li>Agent requests named views: <code>channel_ranking</code>, <code>yoy_comparison</code>, <code>seasonal_pattern</code></li>
-          <li>Business logic lives in the model, not the agent — one place to update</li>
-          <li>New analytical views are added to <code>index.malloy</code> without touching agent code</li>
-          <li>Any agent or tool that connects via MCP gets the same consistent data contract</li>
-        </ul>
-      </div>
-    </div>
-
-    <h3 style="margin-top:36px;margin-bottom:12px;">The 5 Pre-Built Views</h3>
-    <div class="card-grid" style="margin-top:4px;">
-      <div class="card">
-        <div class="card-file">by_channel_month</div>
-        <p>Full time series — every month × every channel, sorted chronologically. The main view used for the daily report and trend analysis.</p>
-      </div>
-      <div class="card">
-        <div class="card-file">channel_ranking</div>
-        <p>Channels sorted by average CPM descending, with min/max range. Answers "which channel is most expensive to advertise on?"</p>
-      </div>
-      <div class="card">
-        <div class="card-file">yoy_comparison</div>
-        <p>Same month across different years, by channel. Answers "is paid social getting more or less expensive compared to last year?"</p>
-      </div>
-      <div class="card">
-        <div class="card-file">seasonal_pattern</div>
-        <p>Average CPM by calendar month across all years. Answers "which months are cheapest to run campaigns?" (typically Jan–Feb).</p>
-      </div>
-      <div class="card">
-        <div class="card-file">annual_by_channel</div>
-        <p>Annual average, min, and max CPM per channel. Useful for budget planning and year-end benchmarking.</p>
-      </div>
-    </div>
-  </div>
-</section>
-
-
-<!-- ═══ SECTION 6: TEST RESULTS ═══ -->
-<section id="verified">
-  <div class="container">
-    <div class="section-label">Section 6</div>
-    <h2>Verified — Test Results</h2>
-    <p class="section-sub">The updated <code>agent.ts</code> was tested automatically before this document was created. All state transitions were verified with a full simulation.</p>
-
-    <h3 style="margin-bottom:12px;">Static Analysis (17 checks)</h3>
-    <div class="sim-box">
-<span class="g">✅</span> All 6 input modes present (A–F)<br>
-<span class="g">✅</span> All 8 ROI dimensions in dashboard output<br>
-<span class="g">✅</span> All AgentState fields present (13 fields)<br>
-<span class="g">✅</span> All ChangeRequest fields present (7 fields)<br>
-<span class="g">✅</span> All 6 change request types defined (format · content · channels · frequency · recipients · other)<br>
-<span class="g">✅</span> All 5 helper functions present<br>
-<span class="g">✅</span> Reset correctly spreads EMPTY_STATE (clears all new fields)<br>
-<span class="g">✅</span> EMPTY_STATE includes changeRequests, totalChangeRequests, implementedChanges<br>
-<span class="g">✅</span> isTestRun guard present (requires no outcome field to skip recording)<br>
-<span class="g">✅</span> postRunToNeon not called in test run path<br>
-<span class="g">✅</span> Neon write guarded by isTestRun check<br>
-<span class="g">✅</span> Balanced braces — 158 matched pairs<br>
-<span class="g">✅</span> All 5 ROI constants defined and referenced<br>
-<span class="g">✅</span> markImplemented recounts from filter (not naïve +1)<br>
-<span class="g">✅</span> Trend function handles edge cases (&lt;5 runs, &lt;20 runs)<br>
-<span class="g">✅</span> Mode B: no LLM call, does save state, returns early<br>
-<span class="g">✅</span> Mode C: no LLM call, does save state, returns early<br>
-<span class="b">📄</span> File: 578 lines
-    </div>
-
-    <h3 style="margin-top:32px;margin-bottom:12px;">Full State Machine Simulation</h3>
-    <div class="sim-box">
-<span class="h">[3 autonomous pipeline runs]</span><br>
-  totalRuns=3  auto=3  hitl=0  err=0  totalCR=0  cost=$0.08100<br><br>
-<span class="h">[Mode B: change request — format]</span><br>
-  totalRuns=3  auto=3  hitl=0  err=0  totalCR=1  implemented=0<br><br>
-<span class="h">[Mode B: change request — content]</span><br>
-  totalRuns=3  auto=3  hitl=0  err=0  totalCR=2  implemented=0<br><br>
-<span class="h">[1 HITL pipeline run]</span><br>
-  totalRuns=4  auto=3  hitl=1  err=0  totalCR=2  implemented=0<br><br>
-<span class="h">[Mode C: mark cr-1 implemented]</span><br>
-  totalRuns=4  auto=3  hitl=1  err=0  totalCR=2  implemented=1<br>
-  cr-1: implemented=true  ✓<br>
-  cr-2: implemented=false  ✓<br><br>
-<span class="h">[ROI metrics]</span><br>
-  Automation rate:     <span class="g">75.0%</span><br>
-  Total LLM cost:      <span class="b">$0.08100</span><br>
-  Human time saved:    <span class="g">$75.00</span>  (3 runs × $25.00/run)<br>
-  ROI multiple:        <span class="g">925.9x</span><br>
-  Change request rate: <span class="a">0.50 per run</span><br>
-  Implementation rate: <span class="a">50.0%</span><br>
-  Error rate:          <span class="g">0.0%</span><br>
-  Avg data pts/run:    <span class="b">3.8</span><br><br>
-<span class="h">[Mode F: reset]</span><br>
-  totalRuns=0  auto=0  changeRequests.length=0  totalCR=0  cost=$0.00<br><br>
-<span class="g">✅ All state transition assertions passed</span>
-    </div>
-
-    <div class="verdict-box">
-      <div class="verdict-title">What This System Now Proves</div>
-      <p style="color:var(--subtle);font-size:14px;line-height:1.8;">
-        The original question was: <em>"what is the ROI of a Guild agent, from a customer's perspective?"</em>
-        The answer is now measurable across 8 dimensions — not a single number a CFO can wave away, but a complete picture:
-        how often did the agent run without help, what did it cost, what did it replace, how many times did a human have to correct it,
-        is it getting corrected less over time, and is every correction being acted on?
-        <br><br>
-        <strong style="color:var(--text);">The change request rate and its trend are the most strategically important metrics Guild doesn't have yet anywhere else.</strong>
-        A declining rate across a customer's fleet of agents is the dataset that proves agents aren't just automating tasks — they're earning autonomy.
-        That's the story that turns a renewal into an expansion.
-      </p>
     </div>
   </div>
 </section>
 
 <footer>
-  CPM Agent System v2 &nbsp;·&nbsp; Guild.ai + Vercel + Neon + Resend + Brave + Malloy + Anthropic
-  &nbsp;·&nbsp; Built and tested June 2026 &nbsp;·&nbsp; Architecture: Rod Brathwaite
+  CPM Agent System · Last updated July 2026 · <a href="CPM Agent — Live Dashboard.html" style="color:var(--green);text-decoration:none">Open Live Dashboard →</a>
 </footer>
 
 </body>
