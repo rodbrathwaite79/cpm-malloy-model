@@ -6,21 +6,21 @@
  * which hardcoded provider="cursor" for every git commit.
  * The user never used Cursor — these entries should not exist.
  *
- * Usage:
- *   cd ~/Documents/cpm-agent/malloy-model-git
+ * Usage (from repo root):
  *   node agent/cleanup-cursor-entries.mjs
  *
- * Requires DATABASE_URL in environment or agent/.env file.
- * Uses @neondatabase/serverless from cpm-vercel/node_modules (already installed).
+ * Reads DATABASE_URL from cpm-vercel/.env (no npm install required).
  */
 
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { createRequire } from 'module';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const require = createRequire(import.meta.url);
 
-// Load .env from agent/, repo root, or cpm-vercel/ — whichever has DATABASE_URL
+// Load .env — check agent/, repo root, and cpm-vercel/
 const envCandidates = [
   join(__dirname, '.env'),
   join(__dirname, '..', '.env'),
@@ -29,8 +29,7 @@ const envCandidates = [
 ];
 for (const envPath of envCandidates) {
   try {
-    const lines = readFileSync(envPath, 'utf8').split('\n');
-    for (const line of lines) {
+    for (const line of readFileSync(envPath, 'utf8').split('\n')) {
       const trimmed = line.trim();
       if (!trimmed || trimmed.startsWith('#')) continue;
       const eq = trimmed.indexOf('=');
@@ -40,23 +39,22 @@ for (const envPath of envCandidates) {
       if (key && !process.env[key]) process.env[key] = val;
     }
     if (process.env.DATABASE_URL) break;
-  } catch { /* file not found, try next */ }
+  } catch { /* try next */ }
 }
 
 const DATABASE_URL = process.env.DATABASE_URL;
 if (!DATABASE_URL) {
-  console.error('ERROR: DATABASE_URL not set.');
+  console.error('ERROR: DATABASE_URL not found in any .env file.');
   process.exit(1);
 }
 
-// Import from cpm-vercel's already-installed node_modules
-const { neon } = await import('../cpm-vercel/node_modules/@neondatabase/serverless/index.js');
+// Use @neondatabase/serverless already installed in cpm-vercel/
+const { neon } = require('../cpm-vercel/node_modules/@neondatabase/serverless');
 const sql = neon(DATABASE_URL);
 
 async function run() {
-  // Safety preview — show what we're about to delete
   const preview = await sql`
-    SELECT id, session_id, description, created_at
+    SELECT id, session_id, description
     FROM ai_interactions
     WHERE provider = 'cursor' AND session_id LIKE 'git-%'
     ORDER BY id
@@ -69,8 +67,7 @@ async function run() {
 
   console.log(`\nFound ${preview.length} mislabeled cursor entries:\n`);
   for (const row of preview) {
-    const desc = (row.description || '').slice(0, 60);
-    console.log(`  id=${row.id}  ${row.session_id}  "${desc}..."`);
+    console.log(`  id=${row.id}  ${row.session_id}  "${(row.description || '').slice(0, 60)}"`);
   }
 
   console.log('\nDeleting...');
@@ -80,7 +77,6 @@ async function run() {
   `;
   console.log(`\n✅ Deleted ${preview.length} rows.`);
 
-  // Show updated totals
   const [totals] = await sql`
     SELECT COUNT(*) AS tasks,
            ROUND(SUM(hours_estimate)::numeric, 2) AS hours,
