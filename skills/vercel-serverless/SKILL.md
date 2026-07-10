@@ -42,14 +42,14 @@ The Vercel cron runner automatically sends the `CRON_SECRET` as the Bearer token
 ## Cron configuration (`vercel.json`)
 ```json
 {
-  "crons": [{ "path": "/api/cpm-report", "schedule": "0 13 * * *" }],
+  "crons": [{ "path": "/api/cpm-report", "schedule": "0 13 * * 1" }],
   "functions": {
     "api/cpm-report.js": { "maxDuration": 120 },
     "api/metrics.js":    { "maxDuration": 10 }
   }
 }
 ```
-- `0 13 * * *` = 8am EST (UTC-5) / 1pm UTC
+- `0 13 * * 1` = 8am EST (UTC-5) / 1pm UTC, every Monday
 - Default `maxDuration` is 10s; bump to 120 for crons that do web scraping + DB writes
 - Cron requires Vercel Hobby or Pro plan
 

@@ -1,12 +1,12 @@
 ---
 name: launchd-schedule
 description: >
-  Create a macOS launchd plist to schedule a Node.js script at a specific time daily.
-  Use this skill whenever setting up or debugging the Mac-side daily report schedule
+  Create a macOS launchd plist to schedule a Node.js script every Monday at 8am.
+  Use this skill whenever setting up or debugging the Mac-side weekly report schedule
   for daily-report.mjs — including fixing Node path issues and verifying the schedule is loaded.
 ---
 
-# macOS launchd — Daily Script Scheduling
+# macOS launchd — Weekly Script Scheduling (Monday 8am)
 
 ## Plist template
 Save as `~/Library/LaunchAgents/com.rod.cpm-report.plist`:
@@ -28,8 +28,9 @@ Save as `~/Library/LaunchAgents/com.rod.cpm-report.plist`:
 
   <key>StartCalendarInterval</key>
   <dict>
-    <key>Hour</key>   <integer>8</integer>
-    <key>Minute</key> <integer>0</integer>
+    <key>Weekday</key> <integer>1</integer>
+    <key>Hour</key>    <integer>8</integer>
+    <key>Minute</key>  <integer>0</integer>
   </dict>
 
   <key>StandardOutPath</key>
@@ -83,11 +84,12 @@ launchctl load   ~/Library/LaunchAgents/com.rod.cpm-report.plist
 ## Troubleshooting
 | Symptom | Fix |
 |---------|-----|
-| Script doesn't run at 8am | Check `launchctl list \| grep cpm-report` — if not listed, plist has a parse error |
+| Script doesn't run on Monday at 8am | Check `launchctl list \| grep cpm-report` — if not listed, plist has a parse error |
 | Error: `env: node: No such file or directory` | Wrong Node path — update `ProgramArguments[0]` |
 | Script runs but fails silently | Check error log; DuckDB binary may need rebuild (`rm -rf node_modules && npm install`) |
 | Wrong Node version | Update path to new version after `nvm install` |
 
 ## Architecture note
-The Mac launchd schedule is a backup to the Vercel cron. Both run at 8am local time.
+The Mac launchd schedule is a backup to the Vercel cron. Both run at 8am local time on Mondays.
 The Vercel cron is primary — it runs regardless of whether the Mac is on.
+`Weekday 1` = Monday in launchd (0 = Sunday, 1 = Monday, … 6 = Saturday).

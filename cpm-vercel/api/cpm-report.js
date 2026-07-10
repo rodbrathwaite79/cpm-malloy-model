@@ -1,7 +1,7 @@
 /**
- * /api/cpm-report — Daily CPM report (Vercel serverless cron)
+ * /api/cpm-report — Weekly CPM report (Vercel serverless cron)
  *
- * Triggered automatically by Vercel cron at 0 13 * * * (8am EST / 9am EDT).
+ * Triggered automatically by Vercel cron at 0 13 * * 1 (8am EST / 9am EDT, every Monday).
  * Replaces Mac launchd + daily-report.mjs.
  *
  * What it does:

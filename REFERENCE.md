@@ -9,9 +9,9 @@ Repo: https://github.com/rodbrathwaite79/cpm-malloy-model
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                    DAILY REPORT FLOW                    │
+│                   WEEKLY REPORT FLOW                    │
 │                                                         │
-│  Vercel Cron (8am EST daily)                           │
+│  Vercel Cron (8am EST every Monday)                    │
 │       │                                                 │
 │       ▼                                                 │
 │  /api/cpm-report.js                                     │
@@ -28,8 +28,8 @@ Repo: https://github.com/rodbrathwaite79/cpm-malloy-model
 └─────────────────────────────────────────────────────────┘
 ```
 
-**Primary scheduler:** Vercel serverless cron — runs whether or not either Mac is on.  
-**Mac launchd:** Installed on both Macs as a backup (also runs at 8am local time).  
+**Primary scheduler:** Vercel serverless cron — runs every Monday at 8am ET regardless of whether either Mac is on.  
+**Mac launchd:** Installed on both Macs as a backup (also runs at 8am local time on Mondays).  
 **Database:** Neon Postgres (cloud) — 210+ historical CPM rows, queryable from anywhere.  
 **Email:** Resend REST API — free tier, 3,000 emails/month, no SMTP.
 
@@ -74,7 +74,7 @@ malloy-model-git/
 │   │   └── report-html.js         ← HTML email + dashboard builders
 │   ├── scripts/
 │   │   └── migrate-to-neon.mjs   ← One-time migration (already done)
-│   ├── vercel.json                ← Cron schedule (0 13 * * * = 8am EST)
+│   ├── vercel.json                ← Cron schedule (0 13 * * 1 = 8am EST Mondays)
 │   ├── package.json
 │   └── .env.example               ← Template for required env vars
 ├── cpm_benchmarks.parquet         ← Historical CPM data (local backup)
@@ -138,7 +138,7 @@ agent/cpm-report-agent/
 ## Running the Report
 
 ### Vercel (primary — automatic)
-Runs daily at 8am EST automatically via cron. No action needed.
+Runs every Monday at 8am EST automatically via cron. No action needed.
 
 ### Trigger Vercel manually
 ```bash
@@ -266,7 +266,7 @@ tail -50 ~/Documents/cpm-agent/logs/cpm-report.log
 | Vercel cron not firing | Cron only runs on Vercel Pro/Hobby paid plans | Check Vercel billing |
 | `git pull` fails with 401 | Old token cached in git credential | `git remote set-url origin https://TOKEN@github.com/rodbrathwaite79/cpm-malloy-model.git` |
 | launchd not triggering | Wrong Node path in plist | Check plist `ProgramArguments` — ensure it points to `$(which node)` path |
-| `dataPoints: 0` in Vercel response | No new CPM data found (normal mid-month) | Normal — historical data still in email |
+| `dataPoints: 0` in Vercel response | No new CPM data found (normal mid-week/mid-month) | Normal — historical data still in email |
 | Neon connection error | DATABASE_URL missing or expired | Re-copy from Neon console |
 
 ---
