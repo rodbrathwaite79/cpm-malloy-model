@@ -1,29 +1,29 @@
 {
   "session_id": "2026-07-10-1648",
   "session_start": "2026-07-10T16:48:16Z",
-  "session_end": "2026-07-10T16:51:55Z",
-  "duration_minutes": 4,
+  "session_end": "2026-07-10T19:13:12Z",
+  "duration_minutes": 145,
   "provider": "claude",
   "tool": "cowork",
   "project": "cpm-agent",
   "tasks": [
     {
       "type": "code",
-      "description": "Wrote agent/cleanup-cursor-entries.mjs — Node.js script to DELETE the 12 mislabeled provider=cursor rows (session_id LIKE git-%) from Neon ai_interactions; includes safety preview, row count confirmation, and post-delete totals",
+      "description": "Wrote agent/cleanup-cursor-entries.mjs to DELETE the 12 mislabeled provider=cursor rows from Neon ai_interactions. Script required 3 rewrites: pg (not installed) → @neondatabase/serverless via dynamic import (neon not a function) → createRequire (fetch failed). Ultimately unresolved — could not locate the correct database endpoint despite checking Neon console, cpm-vercel and malloyyo Vercel env vars, and direct psql connections.",
       "start": "2026-07-10T16:48:16Z",
-      "end": "2026-07-10T16:49:30Z",
-      "duration_minutes": 1,
-      "human_equivalent_hours": 0.5,
-      "value_usd": 75,
-      "first_pass": true,
+      "end": "2026-07-10T18:30:00Z",
+      "duration_minutes": 102,
+      "human_equivalent_hours": 1.5,
+      "value_usd": 225,
+      "first_pass": false,
       "output": "agent/cleanup-cursor-entries.mjs"
     },
     {
       "type": "document",
-      "description": "Updated all 3 HTML docs and REFERENCE.md with corrected ROI numbers after removing 12 mislabeled Cursor entries: 2,185× ROI (was 2,972×), $4,261 value (was $5,796), 30.6h (was 42.4h), 11 sessions (was 23), 91% first-pass (was 95%). Removed Cursor from all provider tables. Added cleanup-cursor-entries.mjs to REFERENCE.md troubleshooting table.",
-      "start": "2026-07-10T16:49:30Z",
-      "end": "2026-07-10T16:51:55Z",
-      "duration_minutes": 2,
+      "description": "Updated all 3 HTML files and REFERENCE.md with corrected ROI numbers after removing Cursor from provider tables: 2,185× ROI (was 2,972×), $4,261 value (was $5,796), 30.6h (was 42.4h), 11 sessions (was 23), 91% first-pass (was 95%). All docs committed.",
+      "start": "2026-07-10T18:30:00Z",
+      "end": "2026-07-10T19:13:12Z",
+      "duration_minutes": 43,
       "human_equivalent_hours": 1.0,
       "value_usd": 125,
       "first_pass": true,
@@ -32,9 +32,9 @@
   ],
   "summary": {
     "primary_task_type": "code",
-    "total_human_equivalent_hours": 1.5,
-    "total_value_usd": 200,
-    "first_pass": true,
-    "corrections": 0
+    "total_human_equivalent_hours": 2.5,
+    "total_value_usd": 350,
+    "first_pass": false,
+    "corrections": 3
   }
 }
