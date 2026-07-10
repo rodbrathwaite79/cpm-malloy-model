@@ -146,6 +146,8 @@ malloy-model-git/
 | `RESEND_API_KEY` | ✅ |
 | `EMAIL_TO` | ✅ |
 | `DATABASE_URL` | ✅ |
+| `LOG_API_URL` | Optional — enables self-logging in agent.ts |
+| `LOG_API_KEY` | Optional — pairs with LOG_API_URL |
 
 > **Security rules (never violate):**
 > - Never commit `.env` files
@@ -225,6 +227,30 @@ FORCE_UPDATE=true node ~/Documents/cpm-agent/agent/cpm-report-agent/daily-report
 | analysis | $175 |
 | research | $125 |
 | document | $125 |
+
+---
+
+## Guild Agent Self-Logging
+
+> **Plain English:** Each Guild agent now files its own "timesheet entry" after every successful run — the same way Claude does after Cowork sessions.
+
+Both Guild agents automatically POST to `/api/log-interaction` on success, so their runs appear alongside Cowork sessions in the ROI dashboard.
+
+| Agent | When logged | Task type | Hours estimate |
+|-------|------------|-----------|----------------|
+| `agent/agent.ts` | Every non-test production run (MODE A/D/E) | analysis | `ANALYST_MIN_PER_REPORT_RUN ÷ 60` (0.25h) |
+| `agent/universal-tracker.ts` | After successful MODE A INIT only | code | 0.1h |
+
+MODE B (LOG) in universal-tracker is deliberately excluded — it IS the log mechanism; self-logging it would be circular.
+
+### Required env vars (set in Guild dashboard → agent settings)
+
+| Variable | Value |
+|----------|-------|
+| `LOG_API_URL` | `https://cpm-vercel.vercel.app/api/log-interaction` |
+| `LOG_API_KEY` | Same value as Vercel `LOG_API_KEY` |
+
+Both calls are non-fatal: if env vars are missing, the agent continues normally with no self-log written.
 
 ---
 

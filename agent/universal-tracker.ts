@@ -303,6 +303,27 @@ export default task(async (input: string, data: Record<string, unknown>) => {
     }
     await task.save(updated)
 
+    // Self-log the INIT run so it appears in ai_interactions
+    try {
+      await postToLogEndpoint({
+        project:        projectName,
+        provider:       "anthropic",
+        tool:           "guild",
+        task_type:      "code",
+        description:    `Universal tracker INIT — seeded ${BACKFILL_TASKS.length} backfill interactions into Neon ($${totalValue.toFixed(2)} value)`,
+        hours_estimate: 0.1,
+        hours_source:   "estimated",
+        value_usd:      calcValue("code", 0.1),
+        first_pass:     true,
+        corrections:    0,
+        output:         `${BACKFILL_TASKS.length} ai_interactions rows inserted`,
+        notes:          `Seeded $${totalValue.toFixed(2)} value, $${totalCost.toFixed(4)} cost`,
+        cost_model:     "subscription",
+        cost_usd:       null,
+        session_id:     task.sessionId ?? "",
+      })
+    } catch { /* non-fatal — INIT still succeeds if self-log fails */ }
+
     return [
       `✅ **Initialized project "${projectName}"**`,
       `Seeded ${BACKFILL_TASKS.length} backfill interactions into Neon:`,

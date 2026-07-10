@@ -74,6 +74,23 @@ async function postRunToNeon(record: {
   } catch { /* non-fatal */ }
 }
 
+// ── AI interaction log (non-fatal) ────────────────────────────────────────────
+// Self-logs each production run to ai_interactions so Guild agent runs
+// appear in the same ROI dashboard as Cowork sessions.
+// Requires LOG_API_URL + LOG_API_KEY in Guild env vars.
+async function logInteractionToNeon(payload: object): Promise<void> {
+  const url = process.env.LOG_API_URL
+  const key = process.env.LOG_API_KEY
+  if (!url || !key) return
+  try {
+    await fetch(url, {
+      method:  "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+      body:    JSON.stringify(payload),
+    })
+  } catch { /* non-fatal */ }
+}
+
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 type ChangeRequestType = "format" | "content" | "channels" | "frequency" | "recipients" | "other"
@@ -384,6 +401,24 @@ Rules:
       inputTokens:     todayInputTokens,
       outputTokens:    todayOutputTokens,
       dataPointsFound: dataPoints,
+    })
+
+    await logInteractionToNeon({
+      project:        "cpm-agent",
+      provider:       "anthropic",
+      tool:           "guild",
+      task_type:      "analysis",
+      description:    `CPM benchmark analysis — ${dataPoints} data points — ${outcome} run. ${question.slice(0, 120)}`,
+      hours_estimate: ANALYST_MIN_PER_REPORT_RUN / 60,
+      hours_source:   "estimated",
+      value_usd:      outcome === "autonomous" ? SAVED_PER_AUTONOMOUS_RUN : 0,
+      first_pass:     outcome === "autonomous",
+      corrections:    outcome !== "autonomous" ? 1 : 0,
+      session_id:     task.sessionId,
+      cost_model:     "per-token",
+      cost_usd:       todayCost > 0 ? todayCost : null,
+      output:         `CPM report: ${dataPoints} data points`,
+      notes:          `${displayState.autonomousRuns}/${displayState.totalRuns} runs autonomous`,
     })
   }
 
