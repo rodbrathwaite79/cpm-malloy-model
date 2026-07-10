@@ -1,0 +1,92 @@
+name: Log AI Sessions
+
+on:
+  push:
+    paths:
+      - 'session-logs/pending/**.json'
+
+permissions:
+  contents: write
+
+jobs:
+  log-sessions:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Process pending session logs
+        env:
+          LOG_API_KEY: ${{ secrets.LOG_API_KEY }}
+        run: |
+          shopt -s nullglob
+          files=(session-logs/pending/*.json)
+
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No pending session files found."
+            exit 0
+          fi
+
+          mkdir -p session-logs/posted
+          FAILED=0
+
+          for file in "${files[@]}"; do
+            echo "━━━ Processing: $file"
+
+            # Validate JSON
+            if ! jq empty "$file" 2>/dev/null; then
+              echo "✗ Invalid JSON — skipping $file"
+              FAILED=1
+              continue
+            fi
+
+            # Build API payload from session JSON
+            payload=$(jq '{
+              provider:      .provider,
+              tool:          .tool,
+              taskType:      .summary.primary_task_type,
+              description:   ([.tasks[].description] | join("; ")),
+              hoursEstimate: .summary.total_human_equivalent_hours,
+              hoursSource:   "measured",
+              valueUsd:      .summary.total_value_usd,
+              firstPass:     .summary.first_pass,
+              corrections:   (.summary.corrections // 0),
+              project:       .project,
+              sessionId:     .session_id
+            }' "$file")
+
+            echo "Payload: $payload"
+
+            # POST to log-interaction endpoint
+            http_code=$(curl -s -o /tmp/response.json -w "%{http_code}" \
+              -X POST "https://cpm-vercel.vercel.app/api/log-interaction" \
+              -H "Content-Type: application/json" \
+              -H "Authorization: Bearer $LOG_API_KEY" \
+              -d "$payload")
+
+            response=$(cat /tmp/response.json)
+            echo "Response (HTTP $http_code): $response"
+
+            if [ "$http_code" = "200" ]; then
+              echo "✓ Logged successfully"
+              mv "$file" "session-logs/posted/$(basename "$file")"
+            else
+              echo "✗ Failed — leaving in pending/ for retry"
+              FAILED=1
+            fi
+          done
+
+          exit $FAILED
+
+      - name: Commit moved files
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add session-logs/
+          if git diff --cached --quiet; then
+            echo "Nothing to commit."
+          else
+            git commit -m "chore: move processed session logs to posted/ [skip ci]"
+            git push
+          fi

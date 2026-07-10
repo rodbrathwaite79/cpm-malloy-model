@@ -1,0 +1,51 @@
+{
+  "session_id": "2026-07-10-1400",
+  "session_start": "2026-07-10T14:00:00Z",
+  "session_end": "2026-07-10T16:30:00Z",
+  "duration_minutes": 150,
+  "provider": "claude",
+  "tool": "cowork",
+  "project": "cpm-agent",
+  "tasks": [
+    {
+      "type": "code",
+      "description": "Created CPM Skills Reference HTML — interactive 18-skill reference guide with architecture diagram, search, category sections, and modal detail views for each skill",
+      "start": "2026-07-10T14:05:00Z",
+      "end": "2026-07-10T14:55:00Z",
+      "duration_minutes": 50,
+      "human_equivalent_hours": 5.0,
+      "value_usd": 750,
+      "first_pass": true,
+      "output": "skills/CPM-Skills-Reference.html"
+    },
+    {
+      "type": "code",
+      "description": "Switched CPM report cron from daily to weekly Monday 8am ET — updated vercel.json, cpm-report.js header, REFERENCE.md, launchd-schedule SKILL.md, and vercel-serverless SKILL.md",
+      "start": "2026-07-10T15:00:00Z",
+      "end": "2026-07-10T15:20:00Z",
+      "duration_minutes": 20,
+      "human_equivalent_hours": 0.5,
+      "value_usd": 75,
+      "first_pass": true,
+      "output": "cpm-vercel/vercel.json"
+    },
+    {
+      "type": "analysis",
+      "description": "Designed cross-machine automatic ROI session logging architecture — evaluated git hook vs GitHub Actions approach, identified computer-independence requirements, designed session JSON schema and GitHub Action workflow",
+      "start": "2026-07-10T15:25:00Z",
+      "end": "2026-07-10T16:30:00Z",
+      "duration_minutes": 65,
+      "human_equivalent_hours": 2.0,
+      "value_usd": 350,
+      "first_pass": true,
+      "output": ".github/workflows/log-sessions.yml"
+    }
+  ],
+  "summary": {
+    "primary_task_type": "code",
+    "total_human_equivalent_hours": 7.5,
+    "total_value_usd": 1175,
+    "first_pass": true,
+    "corrections": 0
+  }
+}

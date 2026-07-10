@@ -1,0 +1,1131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CPM Agent System — Skills Reference</title>
+<style>
+  :root {
+    --bg:       #0f1117;
+    --surface:  #1a1d27;
+    --card:     #21253a;
+    --border:   #2e3350;
+    --accent:   #6366f1;
+    --accent2:  #22d3ee;
+    --green:    #22c55e;
+    --amber:    #f59e0b;
+    --red:      #ef4444;
+    --purple:   #a855f7;
+    --text:     #e2e8f0;
+    --muted:    #94a3b8;
+    --code-bg:  #0d1117;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 14px; line-height: 1.6; }
+
+  /* ── Layout ── */
+  .layout { display: flex; min-height: 100vh; }
+  .sidebar { width: 220px; background: var(--surface); border-right: 1px solid var(--border); padding: 24px 0; position: sticky; top: 0; height: 100vh; overflow-y: auto; flex-shrink: 0; }
+  .main { flex: 1; padding: 32px; max-width: 1100px; }
+
+  /* ── Sidebar ── */
+  .sidebar-title { font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); padding: 0 16px 12px; }
+  .sidebar-nav a { display: flex; align-items: center; gap: 8px; padding: 8px 16px; color: var(--muted); text-decoration: none; font-size: 13px; transition: all 0.15s; border-left: 2px solid transparent; }
+  .sidebar-nav a:hover, .sidebar-nav a.active { color: var(--text); background: rgba(99,102,241,0.08); border-left-color: var(--accent); }
+  .sidebar-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .sidebar-section { margin-top: 20px; }
+
+  /* ── Header ── */
+  .hero { margin-bottom: 36px; }
+  .hero h1 { font-size: 28px; font-weight: 700; background: linear-gradient(135deg, #6366f1, #22d3ee); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 8px; }
+  .hero p { color: var(--muted); max-width: 680px; font-size: 15px; }
+  .hero-stats { display: flex; gap: 24px; margin-top: 20px; }
+  .stat { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 12px 20px; }
+  .stat-num { font-size: 22px; font-weight: 700; color: var(--accent); }
+  .stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+
+  /* ── Architecture diagram ── */
+  .arch-section { margin-bottom: 40px; }
+  .section-title { font-size: 13px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+  .section-title::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+  .arch-diagram { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; overflow-x: auto; }
+
+  /* ── Category sections ── */
+  .category-section { margin-bottom: 40px; }
+  .category-header { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+  .category-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+  .cat-infra    { background: rgba(99,102,241,0.15); color: #818cf8; }
+  .cat-analytics{ background: rgba(34,211,238,0.12); color: #67e8f9; }
+  .cat-agent    { background: rgba(168,85,247,0.15); color: #c084fc; }
+  .cat-ops      { background: rgba(245,158,11,0.15); color: #fcd34d; }
+  .cat-data     { background: rgba(34,197,94,0.15);  color: #86efac; }
+  .category-desc { color: var(--muted); font-size: 13px; }
+
+  /* ── Skill cards ── */
+  .skill-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+  .skill-card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 18px; cursor: pointer; transition: all 0.2s; position: relative; }
+  .skill-card:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
+  .skill-card-name { font-size: 14px; font-weight: 700; margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
+  .skill-card-desc { color: var(--muted); font-size: 12px; line-height: 1.5; }
+  .skill-card-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); }
+  .skill-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+  .tag { font-size: 10px; padding: 2px 7px; border-radius: 4px; background: rgba(99,102,241,0.12); color: #a5b4fc; font-family: monospace; }
+  .expand-hint { font-size: 11px; color: var(--muted); }
+  .skill-card:hover .expand-hint { color: var(--accent); }
+
+  /* ── Modal ── */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 1000; backdrop-filter: blur(4px); }
+  .modal-overlay.open { display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; width: 100%; max-width: 780px; max-height: 88vh; overflow-y: auto; position: relative; }
+  .modal-header { padding: 24px 28px 16px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--surface); z-index: 1; }
+  .modal-header h2 { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+  .modal-header .skill-file { font-family: monospace; font-size: 12px; color: var(--muted); }
+  .modal-close { position: absolute; top: 20px; right: 20px; background: var(--card); border: 1px solid var(--border); color: var(--muted); width: 28px; height: 28px; border-radius: 50%; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
+  .modal-close:hover { background: var(--border); color: var(--text); }
+  .modal-body { padding: 24px 28px; }
+
+  .modal-section { margin-bottom: 24px; }
+  .modal-section h3 { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 10px; }
+  .modal-section p { color: var(--text); font-size: 14px; line-height: 1.65; }
+
+  .use-steps { list-style: none; }
+  .use-steps li { display: flex; gap: 12px; margin-bottom: 10px; font-size: 13px; }
+  .use-steps li::before { content: counter(step); counter-increment: step; background: var(--accent); color: #fff; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0; margin-top: 1px; }
+  .use-steps { counter-reset: step; }
+
+  .dep-list { display: flex; flex-wrap: wrap; gap: 8px; }
+  .dep-chip { padding: 4px 12px; border-radius: 20px; font-size: 12px; cursor: pointer; transition: all 0.15s; border: 1px solid; }
+  .dep-uses { background: rgba(99,102,241,0.1); border-color: rgba(99,102,241,0.3); color: #a5b4fc; }
+  .dep-uses:hover { background: rgba(99,102,241,0.2); }
+  .dep-usedby { background: rgba(34,211,238,0.08); border-color: rgba(34,211,238,0.25); color: #67e8f9; }
+  .dep-usedby:hover { background: rgba(34,211,238,0.15); }
+
+  code { font-family: "Fira Code", "Cascadia Code", monospace; background: var(--code-bg); padding: 2px 6px; border-radius: 4px; font-size: 12px; color: #93c5fd; }
+  .code-block { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; font-family: "Fira Code", "Cascadia Code", monospace; font-size: 12px; color: #c9d1d9; overflow-x: auto; line-height: 1.6; white-space: pre; margin-top: 8px; }
+
+  .agents-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .agent-card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
+  .agent-name { font-weight: 600; font-size: 13px; margin-bottom: 4px; }
+  .agent-skills-used { font-size: 11px; color: var(--muted); }
+
+  /* ── Search ── */
+  .search-bar { width: 100%; background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; color: var(--text); font-size: 14px; margin-bottom: 28px; outline: none; transition: border-color 0.15s; }
+  .search-bar:focus { border-color: var(--accent); }
+  .search-bar::placeholder { color: var(--muted); }
+
+  /* ── Scrollbar ── */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  /* Arch flow */
+  .flow-row { display: flex; align-items: center; justify-content: center; gap: 0; flex-wrap: nowrap; margin-bottom: 8px; }
+  .flow-box { background: var(--card); border: 1px solid var(--border); border-radius: 6px; padding: 6px 12px; font-size: 11px; font-weight: 600; white-space: nowrap; cursor: pointer; transition: all 0.15s; }
+  .flow-box:hover { border-color: var(--accent); color: #a5b4fc; }
+  .flow-arrow { color: var(--muted); padding: 0 6px; font-size: 14px; }
+  .flow-row.layer-1 .flow-box { border-color: #4f46e5; color: #818cf8; }
+  .flow-row.layer-2 .flow-box { border-color: #0e7490; color: #67e8f9; }
+  .flow-row.layer-3 .flow-box { border-color: #7e22ce; color: #c084fc; }
+  .flow-sep { height: 1px; background: var(--border); margin: 16px 0; }
+  .flow-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; text-align: center; }
+  .flow-cols { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr 1fr; gap: 12px; }
+  .flow-col-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 8px; text-align: center; }
+  .flow-col-items { display: flex; flex-direction: column; gap: 6px; }
+  .flow-item { background: var(--card); border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; font-size: 11px; text-align: center; cursor: pointer; transition: all 0.15s; }
+  .flow-item:hover { border-color: var(--accent); }
+  .fi-infra  { border-color: rgba(99,102,241,0.4); color: #818cf8; }
+  .fi-analytics { border-color: rgba(34,211,238,0.3); color: #67e8f9; }
+  .fi-agent  { border-color: rgba(168,85,247,0.35); color: #c084fc; }
+  .fi-ops    { border-color: rgba(245,158,11,0.35); color: #fcd34d; }
+  .fi-data   { border-color: rgba(34,197,94,0.3);  color: #86efac; }
+
+  .hidden { display: none !important; }
+
+  @media (max-width: 768px) {
+    .layout { flex-direction: column; }
+    .sidebar { width: 100%; height: auto; position: relative; }
+    .agents-grid { grid-template-columns: 1fr; }
+    .flow-cols { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="layout">
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sidebar-title">CPM Agent Skills</div>
+    <div class="sidebar-nav">
+      <a href="#architecture">🗺 Architecture</a>
+      <a href="#agents">🤖 Agents</a>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-title">Categories</div>
+      <div class="sidebar-nav">
+        <a href="#infra"><span class="sidebar-dot" style="background:#6366f1"></span>Infrastructure</a>
+        <a href="#analytics"><span class="sidebar-dot" style="background:#22d3ee"></span>Analytics</a>
+        <a href="#agent-fw"><span class="sidebar-dot" style="background:#a855f7"></span>Agent Framework</a>
+        <a href="#ops"><span class="sidebar-dot" style="background:#f59e0b"></span>Automation & Ops</a>
+        <a href="#data"><span class="sidebar-dot" style="background:#22c55e"></span>Data & API</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main content -->
+  <main class="main">
+    <!-- Hero -->
+    <div class="hero">
+      <h1>CPM Agent System — Skills Reference</h1>
+      <p>18 reusable skills documenting every pattern used to build the CPM agent system. Click any skill card to see full details, usage steps, and how it connects to other skills.</p>
+      <div class="hero-stats">
+        <div class="stat"><div class="stat-num">18</div><div class="stat-label">Skills</div></div>
+        <div class="stat"><div class="stat-num">7</div><div class="stat-label">Agents</div></div>
+        <div class="stat"><div class="stat-num">5</div><div class="stat-label">Categories</div></div>
+        <div class="stat"><div class="stat-num">$0</div><div class="stat-label">AI Cost / Run</div></div>
+      </div>
+    </div>
+
+    <!-- Search -->
+    <input class="search-bar" id="searchInput" placeholder="Search skills by name, keyword, or category…" oninput="filterSkills(this.value)">
+
+    <!-- Architecture -->
+    <div id="architecture" class="arch-section">
+      <div class="section-title">System Architecture</div>
+      <div class="arch-diagram">
+        <div class="flow-label">Data Flow: Trigger → Collect → Synthesize → Deliver</div>
+        <div class="flow-row layer-1">
+          <div class="flow-box" onclick="openSkill('vercel-serverless')">Vercel Cron (8am EST)</div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-box" onclick="openSkill('brave-search')">Brave Search</div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-box" onclick="openSkill('neon-postgres')">Neon Postgres</div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-box" onclick="openSkill('cpm-rule-based-synthesis')">Insight Synthesis</div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-box" onclick="openSkill('interactive-dashboard-html')">Dashboard HTML</div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-box" onclick="openSkill('resend-email')">Email (Resend)</div>
+        </div>
+
+        <div class="flow-sep"></div>
+        <div class="flow-label">Parallel Backup: Mac launchd → DuckDB → Same delivery</div>
+        <div class="flow-row layer-2">
+          <div class="flow-box" onclick="openSkill('launchd-schedule')">launchd (8am local)</div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-box" onclick="openSkill('duckdb-parquet')">DuckDB / Parquet</div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-box" onclick="openSkill('brave-search')">Brave Search</div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-box" onclick="openSkill('resend-email')">Email + GitHub backup</div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-box" onclick="openSkill('github-file-update')">GitHub CSV</div>
+        </div>
+
+        <div class="flow-sep"></div>
+        <div class="flow-label">ROI Tracking: Any AI session → Log → Query → Analyze</div>
+        <div class="flow-row layer-3">
+          <div class="flow-box" onclick="openSkill('git-hook-auto-logger')">git commit hook</div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-box" onclick="openSkill('api-log-interaction')">POST /api/log-interaction</div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-box" onclick="openSkill('neon-postgres')">Neon (ai_interactions)</div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-box" onclick="openSkill('malloyyo-neon-backend')">Malloyyo MCP</div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-box" onclick="openSkill('malloy-semantic-model')">Malloy Queries</div>
+        </div>
+
+        <div class="flow-sep"></div>
+        <div class="flow-label">All 18 Skills by Category</div>
+        <div class="flow-cols">
+          <div>
+            <div class="flow-col-title">Infrastructure</div>
+            <div class="flow-col-items">
+              <div class="flow-item fi-infra" onclick="openSkill('neon-postgres')">neon-postgres</div>
+              <div class="flow-item fi-infra" onclick="openSkill('vercel-serverless')">vercel-serverless</div>
+              <div class="flow-item fi-infra" onclick="openSkill('resend-email')">resend-email</div>
+              <div class="flow-item fi-infra" onclick="openSkill('brave-search')">brave-search</div>
+              <div class="flow-item fi-infra" onclick="openSkill('github-file-update')">github-file-update</div>
+              <div class="flow-item fi-infra" onclick="openSkill('duckdb-parquet')">duckdb-parquet</div>
+            </div>
+          </div>
+          <div>
+            <div class="flow-col-title">Analytics</div>
+            <div class="flow-col-items">
+              <div class="flow-item fi-analytics" onclick="openSkill('cpm-rule-based-synthesis')">cpm-rule-based-synthesis</div>
+              <div class="flow-item fi-analytics" onclick="openSkill('interactive-dashboard-html')">interactive-dashboard-html</div>
+              <div class="flow-item fi-analytics" onclick="openSkill('malloy-semantic-model')">malloy-semantic-model</div>
+            </div>
+          </div>
+          <div>
+            <div class="flow-col-title">Agent Framework</div>
+            <div class="flow-col-items">
+              <div class="flow-item fi-agent" onclick="openSkill('guild-agent-modes')">guild-agent-modes</div>
+              <div class="flow-item fi-agent" onclick="openSkill('guild-state-machine')">guild-state-machine</div>
+              <div class="flow-item fi-agent" onclick="openSkill('roi-tracking')">roi-tracking</div>
+            </div>
+          </div>
+          <div>
+            <div class="flow-col-title">Automation</div>
+            <div class="flow-col-items">
+              <div class="flow-item fi-ops" onclick="openSkill('launchd-schedule')">launchd-schedule</div>
+              <div class="flow-item fi-ops" onclick="openSkill('git-hook-auto-logger')">git-hook-auto-logger</div>
+            </div>
+          </div>
+          <div>
+            <div class="flow-col-title">Data & API</div>
+            <div class="flow-col-items">
+              <div class="flow-item fi-data" onclick="openSkill('neon-migration')">neon-migration</div>
+              <div class="flow-item fi-data" onclick="openSkill('api-log-interaction')">api-log-interaction</div>
+              <div class="flow-item fi-data" onclick="openSkill('tracker-stats-api')">tracker-stats-api</div>
+              <div class="flow-item fi-data" onclick="openSkill('malloyyo-neon-backend')">malloyyo-neon-backend</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Agents map -->
+    <div id="agents" class="category-section">
+      <div class="section-title">Agents & Their Skills</div>
+      <div class="agents-grid">
+        <div class="agent-card">
+          <div class="agent-name">⚡ CPM Report Agent — Vercel</div>
+          <div class="agent-skills-used">vercel-serverless · neon-postgres · brave-search · cpm-rule-based-synthesis · interactive-dashboard-html · resend-email · github-file-update</div>
+        </div>
+        <div class="agent-card">
+          <div class="agent-name">🖥 CPM Report Agent — Mac</div>
+          <div class="agent-skills-used">launchd-schedule · duckdb-parquet · brave-search · resend-email · github-file-update · cpm-rule-based-synthesis</div>
+        </div>
+        <div class="agent-card">
+          <div class="agent-name">🤖 CPM Research & Metrics Agent</div>
+          <div class="agent-skills-used">guild-agent-modes · guild-state-machine · neon-postgres · malloyyo-neon-backend · roi-tracking</div>
+        </div>
+        <div class="agent-card">
+          <div class="agent-name">📊 Universal Tracker</div>
+          <div class="agent-skills-used">guild-agent-modes · roi-tracking · api-log-interaction · neon-postgres</div>
+        </div>
+        <div class="agent-card">
+          <div class="agent-name">💼 Cowork Session Tracker</div>
+          <div class="agent-skills-used">guild-agent-modes · roi-tracking · api-log-interaction</div>
+        </div>
+        <div class="agent-card">
+          <div class="agent-name">🔍 Malloyyo Analytics Platform</div>
+          <div class="agent-skills-used">malloyyo-neon-backend · malloy-semantic-model · neon-postgres · vercel-serverless</div>
+        </div>
+        <div class="agent-card">
+          <div class="agent-name">🪝 Git Auto-Logger</div>
+          <div class="agent-skills-used">git-hook-auto-logger · api-log-interaction · roi-tracking</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── INFRASTRUCTURE ── -->
+    <div id="infra" class="category-section">
+      <div class="category-header">
+        <span class="category-badge cat-infra">⬡ Infrastructure</span>
+        <span class="category-desc">Core services and integrations every agent depends on</span>
+      </div>
+      <div class="skill-grid" id="infra-grid">
+
+        <div class="skill-card" data-skill="neon-postgres" data-category="infra" onclick="openSkill('neon-postgres')">
+          <div class="skill-card-name"><span style="color:#6366f1">◈</span> neon-postgres</div>
+          <div class="skill-card-desc">Connect to Neon Postgres via HTTP driver, initialize schema with migrations, perform upserts and aggregate queries from any Node.js or Vercel environment.</div>
+          <div class="skill-card-footer">
+            <div class="skill-tags"><span class="tag">@neondatabase/serverless</span><span class="tag">SQL</span></div>
+            <span class="expand-hint">View details →</span>
+          </div>
+        </div>
+
+        <div class="skill-card" data-skill="vercel-serverless" data-category="infra" onclick="openSkill('vercel-serverless')">
+          <div class="skill-card-name"><span style="color:#6366f1">◈</span> vercel-serverless</div>
+          <div class="skill-card-desc">Build Vercel API handlers with CORS, Bearer auth, cron scheduling, body parsing, and environment variable access. The structural wrapper around every cpm-vercel/api/ file.</div>
+          <div class="skill-card-footer">
+            <div class="skill-tags"><span class="tag">handler pattern</span><span class="tag">cron</span></div>
+            <span class="expand-hint">View details →</span>
+          </div>
+        </div>
+
+        <div class="skill-card" data-skill="resend-email" data-category="infra" onclick="openSkill('resend-email')">
+          <div class="skill-card-name"><span style="color:#6366f1">◈</span> resend-email</div>
+          <div class="skill-card-desc">Send HTML emails with base64 file attachments via the Resend REST API. No SMTP, no OAuth — just a POST request. Free tier: 3,000 emails/month.</div>
+          <div class="skill-card-footer">
+            <div class="skill-tags"><span class="tag">Resend API</span><span class="tag">base64</span></div>
+            <span class="expand-hint">View details →</span>
+          </div>
+        </div>
+
+        <div class="skill-card" data-skill="brave-search" data-category="infra" onclick="openSkill('brave-search')">
+          <div class="skill-card-name"><span style="color:#6366f1">◈</span> brave-search</div>
+          <div class="skill-card-desc">Query Brave Search API for CPM benchmarks from credible ad-industry sources, fetch page text, and weight results by source credibility.</div>
+          <div class="skill-card-footer">
+            <div class="skill-tags"><span class="tag">Brave API</span><span class="tag">web scraping</span></div>
+            <span class="expand-hint">View details →</span>
+          </div>
+        </div>
+
+        <div class="skill-card" data-skill="github-file-update" data-category="infra" onclick="openSkill('github-file-update')">
+          <div class="skill-card-name"><span style="color:#6366f1">◈</span> github-file-update</div>
+          <div class="skill-card-desc">Read and update a file in a GitHub repo via the Contents API — GET the current SHA, append new rows, PUT base64-encoded content back. Used for CSV backup alongside Neon.</div>
+          <div class="skill-card-footer">
+            <div class="skill-tags"><span class="tag">GitHub API</span><span class="tag">base64</span></div>
+            <span class="expand-hint">View details →</span>
+          </div>
+        </div>
+
+        <div class="skill-card" data-skill="duckdb-parquet" data-category="infra" onclick="openSkill('duckdb-parquet')">
+          <div class="skill-card-name"><span style="color:#6366f1">◈</span> duckdb-parquet</div>
+          <div class="skill-card-desc">Query local Parquet files and CSVs using the DuckDB Node.js package. Used by the Mac backup runner (daily-report.mjs) instead of Neon.</div>
+          <div class="skill-card-footer">
+            <div class="skill-tags"><span class="tag">duckdb npm</span><span class="tag">parquet</span></div>
+            <span class="expand-hint">View details →</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ── ANALYTICS ── -->
+    <div id="analytics" class="category-section">
+      <div class="category-header">
+        <span class="category-badge cat-analytics">◎ Analytics & Reporting</span>
+        <span class="category-desc">Insight generation and visualization — zero API cost</span>
+      </div>
+      <div class="skill-grid" id="analytics-grid">
+
+        <div class="skill-card" data-skill="cpm-rule-based-synthesis" data-category="analytics" onclick="openSkill('cpm-rule-based-synthesis')">
+          <div class="skill-card-name"><span style="color:#22d3ee">◎</span> cpm-rule-based-synthesis</div>
+          <div class="skill-card-desc">Generate a market summary, 3 channel insights, 3 prioritized recommendations, and 3 next steps from raw CPM rows using pure JavaScript math. No LLM required — runs for $0.</div>
+          <div class="skill-card-footer">
+            <div class="skill-tags"><span class="tag">MoM/YoY</span><span class="tag">zero-cost</span></div>
+            <span class="expand-hint">View details →</span>
+          </div>
+        </div>
+
+        <div class="skill-card" data-skill="interactive-dashboard-html" data-category="analytics" onclick="openSkill('interactive-dashboard-html')">
+          <div class="skill-card-name"><span style="color:#22d3ee">◎</span> interactive-dashboard-html</div>
+          <div class="skill-card-desc">Build a self-contained HTML dashboard with Chart.js trend chart, sidebar filters, sortable MoM/YoY table, and an AI Analysis panel. All CSS and JS inline — works as an email attachment.</div>
+          <div class="skill-card-footer">
+            <div class="skill-tags"><span class="tag">Chart.js</span><span class="tag">self-contained</span></div>
+            <span class="expand-hint">View details →</span>
+          </div>
+        </div>
+
+        <div class="skill-card" data-skill="malloy-semantic-model" data-category="analytics" onclick="openSkill('malloy-semantic-model')">
+          <div class="skill-card-name"><span style="color:#22d3ee">◎</span> malloy-semantic-model</div>
+          <div class="skill-card-desc">Define Malloy sources, measures, dimensions, and named views for both AI interactions and CPM benchmarks. Covers Malloy syntax patterns, connection config, and named query structure.</div>
+          <div class="skill-card-footer">
+            <div class="skill-tags"><span class="tag">Malloy</span><span class="tag">semantic layer</span></div>
+            <span class="expand-hint">View details →</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ── AGENT FRAMEWORK ── -->
+    <div id="agent-fw" class="category-section">
+      <div class="category-header">
+        <span class="category-badge cat-agent">⬡ Agent Framework</span>
+        <span class="category-desc">Patterns for building Guild.ai TypeScript agents</span>
+      </div>
+      <div class="skill-grid" id="agent-grid">
+
+        <div class="skill-card" data-skill="guild-agent-modes" data-category="agent" onclick="openSkill('guild-agent-modes')">
+          <div class="skill-card-name"><span style="color:#a855f7">⬡</span> guild-agent-modes</div>
+          <div class="skill-card-desc">Build Guild.ai agents with multiple named input modes using TypeScript type guards and a routing switch. Covers state management via ctx.state, environment variable access, and API calling from Guild's sandbox.</div>
+          <div class="skill-card-footer">
+            <div class="skill-tags"><span class="tag">Guild SDK</span><span class="tag">TypeScript</span></div>
+            <span class="expand-hint">View details →</span>
+          </div>
+        </div>
+
+        <div class="skill-card" data-skill="guild-state-machine" data-category="agent" onclick="openSkill('guild-state-machine')">
+          <div class="skill-card-name"><span style="color:#a855f7">⬡</span> guild-state-machine</div>
+          <div class="skill-card-desc">Implement a change-request lifecycle (pending → implemented) in a Guild agent, with run-history tracking and ROI dimension measurement across pipeline runs.</div>
+          <div class="skill-card-footer">
+            <div class="skill-tags"><span class="tag">HITL</span><span class="tag">state</span></div>
+            <span class="expand-hint">View details →</span>
+          </div>
+        </div>
+
+        <div class="skill-card" data-skill="roi-tracking" data-category="agent" onclick="openSkill('roi-tracking')">
+          <div class="skill-card-name"><span style="color:#a855f7">⬡</span> roi-tracking</div>
+          <div class="skill-card-desc">Log AI work sessions to the ai_interactions Neon table with task type, hours (measured or estimated), value, cost, first-pass quality, and correction count. Includes the professional rate table.</div>
+          <div class="skill-card-footer">
+            <div class="skill-tags"><span class="tag">ai_interactions</span><span class="tag">hours_source</span></div>
+            <span class="expand-hint">View details →</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ── OPS ── -->
+    <div id="ops" class="category-section">
+      <div class="category-header">
+        <span class="category-badge cat-ops">⚙ Automation & Ops</span>
+        <span class="category-desc">Mac-side scheduling and automatic logging</span>
+      </div>
+      <div class="skill-grid" id="ops-grid">
+
+        <div class="skill-card" data-skill="launchd-schedule" data-category="ops" onclick="openSkill('launchd-schedule')">
+          <div class="skill-card-name"><span style="color:#f59e0b">⚙</span> launchd-schedule</div>
+          <div class="skill-card-desc">Create a macOS launchd plist to run daily-report.mjs at 8am as a hot-standby backup to the Vercel cron. Covers Node path detection, log routing, install/unload, and common failure modes.</div>
+          <div class="skill-card-footer">
+            <div class="skill-tags"><span class="tag">launchd</span><span class="tag">macOS</span></div>
+            <span class="expand-hint">View details →</span>
+          </div>
+        </div>
+
+        <div class="skill-card" data-skill="git-hook-auto-logger" data-category="ops" onclick="openSkill('git-hook-auto-logger')">
+          <div class="skill-card-name"><span style="color:#f59e0b">⚙</span> git-hook-auto-logger</div>
+          <div class="skill-card-desc">Install a global git post-commit hook that detects task type from file extensions, estimates hours from lines changed, and silently POSTs an AI interaction record after every commit.</div>
+          <div class="skill-card-footer">
+            <div class="skill-tags"><span class="tag">post-commit</span><span class="tag">background POST</span></div>
+            <span class="expand-hint">View details →</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ── DATA & API ── -->
+    <div id="data" class="category-section">
+      <div class="category-header">
+        <span class="category-badge cat-data">◉ Data & API</span>
+        <span class="category-desc">Data migration, logging endpoints, and the Malloy MCP server</span>
+      </div>
+      <div class="skill-grid" id="data-grid">
+
+        <div class="skill-card" data-skill="neon-migration" data-category="data" onclick="openSkill('neon-migration')">
+          <div class="skill-card-name"><span style="color:#22c55e">◉</span> neon-migration</div>
+          <div class="skill-card-desc">One-time migration from local Parquet files into Neon Postgres using DuckDB for reading and @neondatabase/serverless for writing. Idempotent — safe to re-run.</div>
+          <div class="skill-card-footer">
+            <div class="skill-tags"><span class="tag">migration</span><span class="tag">idempotent</span></div>
+            <span class="expand-hint">View details →</span>
+          </div>
+        </div>
+
+        <div class="skill-card" data-skill="api-log-interaction" data-category="data" onclick="openSkill('api-log-interaction')">
+          <div class="skill-card-name"><span style="color:#22c55e">◉</span> api-log-interaction</div>
+          <div class="skill-card-desc">Log AI work sessions via POST /api/log-interaction (requires LOG_API_KEY) or the log-ai CLI tool. Documents all request body fields and the full CLI flag reference.</div>
+          <div class="skill-card-footer">
+            <div class="skill-tags"><span class="tag">log-ai CLI</span><span class="tag">REST</span></div>
+            <span class="expand-hint">View details →</span>
+          </div>
+        </div>
+
+        <div class="skill-card" data-skill="tracker-stats-api" data-category="data" onclick="openSkill('tracker-stats-api')">
+          <div class="skill-card-name"><span style="color:#22c55e">◉</span> tracker-stats-api</div>
+          <div class="skill-card-desc">Build a public GET endpoint returning aggregate AI interaction metrics (totals, by-provider breakdown, recent activity, first-pass %). No auth required — used by the live web dashboard.</div>
+          <div class="skill-card-footer">
+            <div class="skill-tags"><span class="tag">public GET</span><span class="tag">aggregates</span></div>
+            <span class="expand-hint">View details →</span>
+          </div>
+        </div>
+
+        <div class="skill-card" data-skill="malloyyo-neon-backend" data-category="data" onclick="openSkill('malloyyo-neon-backend')">
+          <div class="skill-card-name"><span style="color:#22c55e">◉</span> malloyyo-neon-backend</div>
+          <div class="skill-card-desc">Configure Malloyyo — the Vercel-hosted Malloy MCP server — to read both AI interactions and CPM benchmarks from Neon Postgres. Covers deployment, env vars, and all available query views.</div>
+          <div class="skill-card-footer">
+            <div class="skill-tags"><span class="tag">MCP server</span><span class="tag">Malloyyo</span></div>
+            <span class="expand-hint">View details →</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ── MODAL ── -->
+<div class="modal-overlay" id="modalOverlay" onclick="closeModal(event)">
+  <div class="modal" id="modal">
+    <div class="modal-header">
+      <h2 id="modalTitle"></h2>
+      <div class="skill-file" id="modalFile"></div>
+      <button class="modal-close" onclick="closeModalDirect()">✕</button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+  </div>
+</div>
+
+<script>
+const SKILLS = {
+  "neon-postgres": {
+    title: "neon-postgres",
+    file: "skills/neon-postgres/SKILL.md",
+    category: "Infrastructure",
+    what: "Provides the connection, schema initialization, upsert, and query patterns for Neon Postgres using the @neondatabase/serverless HTTP driver. This is the data persistence layer for both CPM benchmarks (cpm_benchmarks table) and AI interaction tracking (ai_interactions table).",
+    when: "Use whenever a Vercel function or Node.js script needs to read or write to Neon Postgres — including schema creation, monthly data upserts, aggregate queries, and migration.",
+    how: [
+      "Import <code>neon()</code> from <code>@neondatabase/serverless</code> and call it with <code>process.env.DATABASE_URL</code>",
+      "Use tagged-template queries (<code>sql\\`...\\`</code>) for all database calls — never string concatenation",
+      "Run <code>initSchema()</code> once per cold start behind a module-level <code>schemaReady</code> flag",
+      "Use <code>ON CONFLICT DO NOTHING</code> or <code>DO UPDATE</code> to make all inserts idempotent",
+      "Add new columns with <code>ALTER TABLE ... ADD COLUMN IF NOT EXISTS</code> — safe to run on every deploy"
+    ],
+    uses: [],
+    usedBy: ["vercel-serverless", "roi-tracking", "tracker-stats-api", "api-log-interaction", "malloyyo-neon-backend", "neon-migration"],
+    pattern: `import { neon } from "@neondatabase/serverless"
+const sql = neon(process.env.DATABASE_URL)
+
+const rows = await sql\`
+  SELECT channel, year, month, AVG(cpm) AS avg_cpm
+  FROM cpm_benchmarks
+  GROUP BY channel, year, month
+  ORDER BY year * 100 + month
+\``
+  },
+
+  "vercel-serverless": {
+    title: "vercel-serverless",
+    file: "skills/vercel-serverless/SKILL.md",
+    category: "Infrastructure",
+    what: "The structural pattern for every file in cpm-vercel/api/. Covers the handler export signature, CORS headers, Bearer auth, cron scheduling in vercel.json, body parsing, and how to set environment variables in the Vercel dashboard.",
+    when: "Use whenever creating or modifying any API handler in cpm-vercel/api/ — whether a cron job, authenticated write endpoint, or public read endpoint.",
+    how: [
+      "Export a default async function <code>handler(req, res)</code>",
+      "Add CORS headers and OPTIONS handler at the top of every endpoint",
+      "Protect write endpoints with <code>Authorization: Bearer &lt;SECRET&gt;</code> header check",
+      "Configure crons in <code>vercel.json</code> with <code>0 13 * * *</code> for 8am EST",
+      "Set <code>maxDuration: 120</code> for the cpm-report cron — default 10s is too short for web scraping"
+    ],
+    uses: ["neon-postgres", "resend-email", "brave-search", "github-file-update", "cpm-rule-based-synthesis", "interactive-dashboard-html"],
+    usedBy: ["api-log-interaction", "tracker-stats-api"],
+    pattern: `export default async function handler(req, res) {
+  res.setHeader("Access-Control-Allow-Origin", "*")
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization")
+  if (req.method === "OPTIONS") return res.status(204).end()
+
+  const secret = process.env.CRON_SECRET
+  const auth   = req.headers.authorization ?? ""
+  if (secret && auth !== \`Bearer \${secret}\`) {
+    return res.status(401).json({ error: "Unauthorized" })
+  }
+  // ... handler logic
+}`
+  },
+
+  "resend-email": {
+    title: "resend-email",
+    file: "skills/resend-email/SKILL.md",
+    category: "Infrastructure",
+    what: "Sends HTML emails with optional base64-encoded file attachments via the Resend REST API. Chosen over Gmail/SendGrid because Gmail App Passwords are blocked by Passkey login and Resend requires no SMTP or OAuth setup.",
+    when: "Use whenever an agent or serverless function needs to send the daily CPM report, a HITL notification, or any other automated email.",
+    how: [
+      "POST to <code>https://api.resend.com/emails</code> with <code>Authorization: Bearer &lt;RESEND_API_KEY&gt;</code>",
+      "Use <code>onboarding@resend.dev</code> as the sender (free tier sandbox) unless a custom domain is verified",
+      "Convert HTML dashboard to base64 with <code>Buffer.from(html).toString('base64')</code> before attaching",
+      "Pass <code>attachments: [{ filename, content }]</code> in the request body — Resend accepts base64 directly",
+      "In Vercel (older Node runtimes without fetch), use the <code>https.request()</code> helper instead"
+    ],
+    uses: [],
+    usedBy: ["vercel-serverless", "launchd-schedule"],
+    pattern: `const body = {
+  from: "CPM Report <onboarding@resend.dev>",
+  to: [process.env.EMAIL_TO],
+  subject: "📊 CPM Report",
+  html: emailBodyHtml,
+  attachments: [{
+    filename: "CPM-Dashboard.html",
+    content: Buffer.from(dashHtml, "utf-8").toString("base64")
+  }]
+}
+await fetch("https://api.resend.com/emails", {
+  method: "POST",
+  headers: { Authorization: \`Bearer \${process.env.RESEND_API_KEY}\`,
+             "Content-Type": "application/json" },
+  body: JSON.stringify(body)
+})`
+  },
+
+  "brave-search": {
+    title: "brave-search",
+    file: "skills/brave-search/SKILL.md",
+    category: "Infrastructure",
+    what: "Queries Brave Search for CPM benchmark data from credible advertising industry sources, then fetches and strips HTML from result pages to extract raw text for CPM value extraction.",
+    when: "Use on the 1st of each month when the cpm-report cron searches for previous month's verified CPM data across all 5 channels.",
+    how: [
+      "Build targeted queries: channel label + month/year + <code>site:</code> filters for credible sources",
+      "Call Brave API with <code>X-Subscription-Token: &lt;BRAVE_API_KEY&gt;</code> header",
+      "Fetch top 3 result URLs and strip HTML tags to get plain text (3,000 char limit)",
+      "Weight extracted CPM values by source credibility — prefer emarketer.com, adsposure.com, wordstream.com",
+      "Fall back to regex extraction if no credible sources return parseable figures"
+    ],
+    uses: [],
+    usedBy: ["vercel-serverless", "launchd-schedule"],
+    pattern: `const query = \`"\${channelLabel}" CPM benchmark "\${monthName} \${year}" site:emarketer.com OR site:adsposure.com\`
+const res = await fetch(
+  \`https://api.search.brave.com/res/v1/web/search?q=\${encodeURIComponent(query)}&count=5\`,
+  { headers: { "X-Subscription-Token": process.env.BRAVE_API_KEY } }
+)
+const data = await res.json()
+const results = data?.web?.results ?? []`
+  },
+
+  "github-file-update": {
+    title: "github-file-update",
+    file: "skills/github-file-update/SKILL.md",
+    category: "Infrastructure",
+    what: "Reads a file from GitHub, appends new rows, and writes it back via the GitHub Contents API. Used to maintain cpm_monthly_updates.csv as a belt-and-suspenders backup alongside Neon Postgres.",
+    when: "Use whenever new verified CPM data is found (1st of month) and needs to be committed to the GitHub CSV alongside the Neon upsert.",
+    how: [
+      "GET the file first to obtain its current SHA — the PUT requires the SHA for optimistic locking",
+      "Decode the base64 content from the GET response: <code>Buffer.from(content.replace(/\\n/g,''), 'base64').toString()</code>",
+      "Build a deduplication set from existing rows before appending to avoid duplicates",
+      "Encode the updated content back to base64 and PUT with the SHA, message, and committer fields",
+      "Handle 401/403 gracefully — log a warning and skip rather than crashing the pipeline"
+    ],
+    uses: [],
+    usedBy: ["vercel-serverless", "launchd-schedule"],
+    pattern: `// GET → extract SHA
+const getRes = await fetch(apiBase, { headers })
+const { sha, content } = await getRes.json()
+const current = Buffer.from(content.replace(/\\n/g, ""), "base64").toString("utf-8")
+
+// PUT with updated content
+await fetch(apiBase, { method: "PUT", headers, body: JSON.stringify({
+  message: "chore: add CPM data",
+  content: Buffer.from(current + newRows, "utf-8").toString("base64"),
+  sha
+})})`
+  },
+
+  "duckdb-parquet": {
+    title: "duckdb-parquet",
+    file: "skills/duckdb-parquet/SKILL.md",
+    category: "Infrastructure",
+    what: "Queries local Parquet files and CSVs from Node.js using the DuckDB npm package. Used by the Mac backup runner (daily-report.mjs) to read CPM benchmark data without a live database connection.",
+    when: "Use in any Mac-side script that needs to read historical CPM data from the local parquet file when Neon isn't available or isn't preferred.",
+    how: [
+      "Use <code>createRequire(import.meta.url)</code> to load the CJS duckdb package from an ESM module",
+      "Create an in-memory database: <code>new duckdb.Database(':memory:')</code>",
+      "Promisify the callback API: <code>new Promise((resolve, reject) => db.all(sql, (err, rows) => ...))</code>",
+      "Query Parquet with <code>read_parquet('/path/to/file.parquet')</code> or CSV with <code>read_csv_auto()</code>",
+      "If the binary architecture mismatches (ARM64 vs x86), run <code>rm -rf node_modules && npm install</code>"
+    ],
+    uses: [],
+    usedBy: ["launchd-schedule", "neon-migration"],
+    pattern: `const require = createRequire(import.meta.url)
+const duckdb  = require("duckdb")
+const db      = new duckdb.Database(":memory:")
+
+const rows = await new Promise((resolve, reject) =>
+  db.all(
+    \`SELECT year, month, channel, cpm FROM read_parquet('\${parquetPath}')\`,
+    (err, rows) => err ? reject(err) : resolve(rows)
+  )
+)
+db.close()`
+  },
+
+  "cpm-rule-based-synthesis": {
+    title: "cpm-rule-based-synthesis",
+    file: "skills/cpm-rule-based-synthesis/SKILL.md",
+    category: "Analytics",
+    what: "A 145-line pure-JavaScript function (synthesizeInsights) that computes MoM%, YoY%, 3-month averages, and urgency thresholds to generate a narrative market summary, 3 insights, 3 recommendations, and 3 next steps — with zero API cost. The canonical implementation lives in cpm-vercel/lib/insights.js.",
+    when: "Use whenever the CPM report pipeline needs to generate the AI Analysis panel content. Replaces Gemini/Anthropic calls entirely.",
+    how: [
+      "Import <code>synthesizeInsights</code> from <code>../lib/insights.js</code> — do not copy/paste the function",
+      "Pass the full array of benchmark rows: <code>{ channel, year, month, avg_cpm }</code>",
+      "The function returns null if fewer than 2 rows — always check before rendering the AI panel",
+      "Pass the result directly to <code>buildInteractiveDashboard(rows, date, aiInsights)</code>",
+      "To extend with a 4th insight (e.g. seasonal signal), push to the <code>insights</code> array before returning"
+    ],
+    uses: [],
+    usedBy: ["vercel-serverless", "interactive-dashboard-html"],
+    pattern: `import { synthesizeInsights } from "../lib/insights.js"
+
+const aiInsights = synthesizeInsights(historicalRows)
+// Returns: { summary, insights[3], recommendations[3], next_steps[3] }
+// Or null if < 2 data points`
+  },
+
+  "interactive-dashboard-html": {
+    title: "interactive-dashboard-html",
+    file: "skills/interactive-dashboard-html/SKILL.md",
+    category: "Analytics",
+    what: "The buildInteractiveDashboard() function in cpm-vercel/lib/report-html.js generates a fully self-contained HTML file with sidebar year/month/channel filters, a Chart.js trend chart, a sortable MoM/YoY data table, and an optional AI Analysis panel.",
+    when: "Use whenever generating the CPM dashboard — either as an email attachment in the Vercel cron or as a local preview with generate-dashboard.mjs.",
+    how: [
+      "Call <code>buildInteractiveDashboard(rows, runDate, aiInsights)</code> — aiInsights can be null",
+      "The returned HTML string is fully self-contained — all CSS and JS are inline",
+      "Email as attachment: base64-encode the HTML and pass to Resend's <code>attachments</code> array",
+      "Preview locally: <code>node scripts/generate-dashboard.mjs</code> → writes CPM-Dashboard-local.html",
+      "The AI Analysis panel renders only if aiInsights !== null — no conditional code needed in the caller"
+    ],
+    uses: ["cpm-rule-based-synthesis"],
+    usedBy: ["vercel-serverless", "resend-email"],
+    pattern: `import { buildInteractiveDashboard } from "../lib/report-html.js"
+import { synthesizeInsights }        from "../lib/insights.js"
+
+const aiInsights = synthesizeInsights(rows)
+const dashHtml   = buildInteractiveDashboard(rows, runDate, aiInsights)
+const dashBase64 = Buffer.from(dashHtml, "utf-8").toString("base64")
+// → attach to email or write to file`
+  },
+
+  "malloy-semantic-model": {
+    title: "malloy-semantic-model",
+    file: "skills/malloy-semantic-model/SKILL.md",
+    category: "Analytics",
+    what: "Defines Malloy semantic models for both the AI interactions tracker and CPM benchmarks. Covers source definitions with neon.table(), measure and dimension declarations, named view patterns, and the quirks of Malloy syntax (backtick reserved words, lpad! SQL functions, pick instead of case/when).",
+    when: "Use when adding a new view to index.malloy or ai_tracker.malloy, changing aggregations, or connecting a source to a different database backend.",
+    how: [
+      "Define sources with <code>source: name is neon.table('public.tablename') extend { ... }</code>",
+      "Declare measures as aggregations: <code>measure: total is count()</code>, <code>measure: avg is avg(field)</code>",
+      "Wrap SQL reserved words in backticks: <code>\\`year\\`</code>, <code>\\`month\\`</code>",
+      "Use bang syntax for SQL functions: <code>lpad!(str, 2, '0')</code>",
+      "Use <code>pick X when condition else Y</code> instead of CASE/WHEN",
+      "After editing .malloy files, deploy: <code>vercel --prod</code> from the malloyyo project directory"
+    ],
+    uses: ["neon-postgres"],
+    usedBy: ["malloyyo-neon-backend"],
+    pattern: `source: interactions is neon.table('public.ai_interactions') extend {
+  measure: total_tasks is count()
+  measure: roi_multiple is round(sum(value_usd) / nullif(sum(cost_usd), 0), 0)
+  dimension: month_year is concat(lpad!(month(created_at)::string, 2, '0'), '/', year(created_at)::string)
+
+  view: roi_by_provider is {
+    group_by: provider, tool
+    aggregate: total_tasks, roi_multiple
+    order_by: roi_multiple desc
+  }
+}`
+  },
+
+  "guild-agent-modes": {
+    title: "guild-agent-modes",
+    file: "skills/guild-agent-modes/SKILL.md",
+    category: "Agent Framework",
+    what: "The TypeScript pattern for building multi-mode Guild.ai agents. Each mode is a distinct input shape, identified via type guards. The agent routes to the appropriate handler function based on which fields are present in the input object.",
+    when: "Use whenever building or modifying agent.ts, cowork-tracker.ts, or universal-tracker.ts — or creating any new Guild agent that needs more than one operating mode.",
+    how: [
+      "Define a TypeScript interface for each mode (ModeA, ModeB, etc.) and a union type as AgentInput",
+      "Write a type guard for each mode: <code>const isModeB = (i): i is ModeB => 'changeRequest' in i</code>",
+      "Route in the main handler with if/else guards — most specific modes first, default mode last",
+      "Access persistent state via <code>ctx.state</code> (null on first run) and save with <code>ctx.setState(state)</code>",
+      "Use <code>ctx.env.MY_VAR</code> instead of <code>process.env.MY_VAR</code> — Guild's sandbox doesn't expose process.env"
+    ],
+    uses: ["guild-state-machine", "roi-tracking"],
+    usedBy: [],
+    pattern: `export default createAgent<AgentInput>(async (input, ctx) => {
+  if (isModeF(input)) return handleReset(ctx)
+  if (isModeB(input)) return handleChangeRequest(input.changeRequest, ctx)
+  if (isModeC(input)) return handleMarkImplemented(input.markImplemented, ctx)
+  if (isModeD(input)) return handleCustomQuery(input, ctx)
+  if (isModeE(input)) return handleDashboard(ctx)
+  return handlePipeline(input as ModeA, ctx)  // default
+})`
+  },
+
+  "guild-state-machine": {
+    title: "guild-state-machine",
+    file: "skills/guild-state-machine/SKILL.md",
+    category: "Agent Framework",
+    what: "Implements a two-step change-request lifecycle inside a Guild agent: MODE B logs a pending change, MODE C marks it implemented. Also covers run-history tracking (last 30 runs) and the 8 ROI dimensions tracked across pipeline invocations.",
+    when: "Use when building the CPM Research agent's change management workflow — or any agent that needs to suggest changes and confirm their implementation over multiple invocations.",
+    how: [
+      "Define <code>ChangeRequest</code> and <code>ImplementedChange</code> interfaces in the agent's state shape",
+      "In MODE B: push a new ChangeRequest with a UUID to <code>state.pendingChanges</code>",
+      "In MODE C: pop the most recent pending change and push it to <code>state.implementedChanges</code> with notes",
+      "After every pipeline run: push a RunRecord to <code>state.runHistory</code> and slice to keep only the last 30",
+      "Always call <code>await ctx.setState(state)</code> after any mutation — state is not automatically persisted"
+    ],
+    uses: [],
+    usedBy: ["guild-agent-modes"],
+    pattern: `// MODE B — log a change request
+state.pendingChanges.push({
+  id: crypto.randomUUID(), type: req.type,
+  description: req.description, addedAt: new Date().toISOString()
+})
+
+// MODE C — mark implemented
+const change = state.pendingChanges.pop()
+state.implementedChanges.push({ ...change, implementedAt: new Date().toISOString(), notes: req.notes })
+
+await ctx.setState(state)`
+  },
+
+  "roi-tracking": {
+    title: "roi-tracking",
+    file: "skills/roi-tracking/SKILL.md",
+    category: "Agent Framework",
+    what: "The ai_interactions Neon table schema, insertAiInteraction() function, professional rate table, and hours_source (measured vs estimated) pattern. Provides the data model for tracking every AI work session's value, cost, quality, and time.",
+    when: "Use when building any agent, endpoint, or script that logs AI work to the ROI tracker — including the universal tracker, cowork tracker, log-ai CLI, or /api/log-interaction.",
+    how: [
+      "Call <code>insertAiInteraction({ provider, tool, taskType, hoursEstimate, hoursSource, valueUsd, ... })</code>",
+      "Calculate <code>valueUsd = hoursEstimate × rateForTaskType</code> using the rate table (code: $150/hr, analysis: $175/hr, etc.)",
+      "Set <code>hoursSource: 'measured'</code> if the agent tracked actual start/end time; otherwise <code>'estimated'</code>",
+      "Set <code>firstPass: false</code> and increment <code>corrections</code> if the output required iteration",
+      "Query ROI via <code>GET /api/interactions?view=roi_by_provider</code> or the Malloy model"
+    ],
+    uses: ["neon-postgres", "api-log-interaction"],
+    usedBy: ["guild-agent-modes"],
+    pattern: `await insertAiInteraction({
+  provider: "claude", tool: "cowork", taskType: "code",
+  description: "Refactored insights module",
+  hoursEstimate: 1.5, hoursSource: "measured",
+  valueUsd: 225, costUsd: 0.08,
+  firstPass: false, corrections: 2
+})`
+  },
+
+  "launchd-schedule": {
+    title: "launchd-schedule",
+    file: "skills/launchd-schedule/SKILL.md",
+    category: "Automation & Ops",
+    what: "Creates a macOS launchd plist that runs daily-report.mjs at 8am as a hot-standby backup to the Vercel cron. Covers the exact plist template, Node path detection (the most common failure), install/unload commands, and log routing.",
+    when: "Use when setting up the Mac backup runner on a new machine, or when the launchd schedule stops firing (wrong Node path after nvm upgrade).",
+    how: [
+      "Find the exact Node binary path: <code>which node</code> → use this verbatim in ProgramArguments[0]",
+      "Create <code>~/Library/LaunchAgents/com.rod.cpm-report.plist</code> with the template from this skill",
+      "Create the log directory: <code>mkdir -p ~/Documents/cpm-agent/logs</code>",
+      "Load: <code>launchctl load ~/Library/LaunchAgents/com.rod.cpm-report.plist</code>",
+      "Test immediately: <code>launchctl start com.rod.cpm-report</code> then <code>tail -50 ~/Documents/cpm-agent/logs/cpm-report.log</code>"
+    ],
+    uses: ["duckdb-parquet", "brave-search", "resend-email", "github-file-update"],
+    usedBy: [],
+    pattern: `<key>ProgramArguments</key>
+<array>
+  <string>/Users/rod/.nvm/versions/node/v22.16.0/bin/node</string>
+  <string>/Users/rod/Documents/cpm-agent/agent/cpm-report-agent/daily-report.mjs</string>
+</array>
+<key>StartCalendarInterval</key>
+<dict>
+  <key>Hour</key><integer>8</integer>
+  <key>Minute</key><integer>0</integer>
+</dict>`
+  },
+
+  "git-hook-auto-logger": {
+    title: "git-hook-auto-logger",
+    file: "skills/git-hook-auto-logger/SKILL.md",
+    category: "Automation & Ops",
+    what: "A global git post-commit hook that runs after every commit, detects the task type from file extensions (.malloy/.sql → analysis, test files → testing, code files → code), estimates hours from lines added, and POSTs silently to /api/log-interaction in the background.",
+    when: "Use when setting up auto-logging on a new Mac, or when modifying the task type detection or hours estimation thresholds.",
+    how: [
+      "Run <code>bash agent/setup-auto-logging.sh</code> once per Mac to install the hook",
+      "Ensure <code>LOG_API_KEY</code> is set in <code>~/.zshrc</code>: <code>export LOG_API_KEY=ai_interaction_tracker29</code>",
+      "The hook runs in the background (<code>&</code>) — git commit returns immediately, POST fires asynchronously",
+      "Task type is auto-detected from extensions; override by editing the <code>case</code> block in the hook",
+      "Hours are estimated from lines added: <25→0.25h, <75→0.5h, <200→1h, <400→2h, else→3h"
+    ],
+    uses: ["api-log-interaction"],
+    usedBy: [],
+    pattern: `# In ~/.git-hooks/post-commit
+LINES=$(git diff HEAD~1 HEAD --stat | tail -1 | grep -oE '[0-9]+ insertion' | grep -oE '[0-9]+')
+HOURS=$([ "$LINES" -lt 25 ] && echo 0.25 || [ "$LINES" -lt 75 ] && echo 0.5 || echo 1.0)
+
+curl -s -X POST "https://cpm-vercel.vercel.app/api/log-interaction" \\
+  -H "Authorization: Bearer $LOG_API_KEY" \\
+  -d "{\\"taskType\\":\\"$TASK_TYPE\\",\\"hoursEstimate\\":$HOURS}" \\
+  > /dev/null 2>&1 &`
+  },
+
+  "neon-migration": {
+    title: "neon-migration",
+    file: "skills/neon-migration/SKILL.md",
+    category: "Data & API",
+    what: "One-time migration script (cpm-vercel/scripts/migrate-to-neon.mjs) that reads 210 rows from local Parquet using DuckDB and batch-inserts them into Neon Postgres. Idempotent — safe to re-run if the migration was interrupted.",
+    when: "Use when setting up a new Neon project, recovering from accidental data loss, or re-seeding the database from the local parquet backup.",
+    how: [
+      "Set <code>DATABASE_URL</code> in cpm-vercel/.env or pass it inline: <code>DATABASE_URL='...' node scripts/migrate-to-neon.mjs</code>",
+      "The script reads cpm_benchmarks.parquet with DuckDB, then inserts each row to Neon via HTTP driver",
+      "All inserts use <code>ON CONFLICT (year, month, channel) DO NOTHING</code> — duplicates are skipped silently",
+      "Verify: <code>SELECT COUNT(*) FROM cpm_benchmarks</code> should return 210 after a clean migration",
+      "After migration, the parquet file stays as a cold backup — the Vercel cron and Malloy model both use Neon"
+    ],
+    uses: ["duckdb-parquet", "neon-postgres"],
+    usedBy: [],
+    pattern: `// Read from parquet with DuckDB
+const rows = await queryDuck(db,
+  \`SELECT year, month, month_name, channel, channel_label, cpm
+   FROM read_parquet('\${parquetPath}')\`
+)
+// Write to Neon (idempotent)
+for (const row of rows) {
+  await sql\`
+    INSERT INTO cpm_benchmarks (year, month, channel, cpm)
+    VALUES (\${row.year}, \${row.month}, \${row.channel}, \${row.cpm})
+    ON CONFLICT DO NOTHING
+  \`
+}`
+  },
+
+  "api-log-interaction": {
+    title: "api-log-interaction",
+    file: "skills/api-log-interaction/SKILL.md",
+    category: "Data & API",
+    what: "Documents the /api/log-interaction endpoint (POST, requires LOG_API_KEY) and the log-ai CLI tool (agent/log-ai.mjs). Covers all request body fields, CLI flags, authentication, and example curl commands for manual logging.",
+    when: "Use when manually logging a Claude session, debugging why a log POST failed, or adding automated logging to a new agent or script.",
+    how: [
+      "CLI: <code>log-ai --provider claude --tool cowork --type code --hours 1.5 --value 225 --desc 'What you did'</code>",
+      "Required fields: <code>provider, tool, taskType, description, hoursEstimate, valueUsd</code>",
+      "Optional: <code>--no-first-pass --corrections 2 --output file.js --cost 0.08 --session id</code>",
+      "Auth: all POSTs need <code>Authorization: Bearer ai_interaction_tracker29</code> in the header",
+      "Use <code>--dry-run</code> to print the payload without sending — useful for debugging"
+    ],
+    uses: ["neon-postgres", "vercel-serverless"],
+    usedBy: ["git-hook-auto-logger", "roi-tracking"],
+    pattern: `# CLI
+log-ai --provider claude --tool cowork --type analysis \\
+       --hours 2.0 --value 350 --desc "Architecture review"
+
+# curl
+curl -X POST https://cpm-vercel.vercel.app/api/log-interaction \\
+  -H "Authorization: Bearer ai_interaction_tracker29" \\
+  -H "Content-Type: application/json" \\
+  -d '{"provider":"claude","tool":"cowork","taskType":"code","hoursEstimate":1.5,"valueUsd":225}'`
+  },
+
+  "tracker-stats-api": {
+    title: "tracker-stats-api",
+    file: "skills/tracker-stats-api/SKILL.md",
+    category: "Data & API",
+    what: "A public GET endpoint (no auth required) that returns aggregated AI interaction metrics: totals, by-provider breakdown, recent 10 interactions, and first-pass percentage. Used by the live web dashboard to show ROI stats.",
+    when: "Use when adding tracker stats to any dashboard surface, or when building a new public metrics endpoint.",
+    how: [
+      "No authentication needed — serve with <code>Access-Control-Allow-Origin: *</code>",
+      "Run all 3 queries in parallel with <code>Promise.all([totalsSql, byProviderSql, recentSql])</code>",
+      "Cast all numeric Postgres results to <code>Number()</code> — Neon returns numeric types as strings",
+      "The response shape is fixed: <code>{ totals, by_provider, recent, first_pass_pct }</code>",
+      "The live web dashboard fetches this on load at <code>/api/tracker-stats</code>"
+    ],
+    uses: ["neon-postgres", "vercel-serverless"],
+    usedBy: [],
+    pattern: `const [totals, byProvider, recent] = await Promise.all([
+  sql\`SELECT COUNT(*) AS tasks, SUM(value_usd) AS value_usd,
+       ROUND(SUM(value_usd)/NULLIF(SUM(cost_usd),0),0) AS roi_multiple
+       FROM ai_interactions\`,
+  sql\`SELECT provider, COUNT(*) AS tasks, SUM(value_usd) AS value_usd
+       FROM ai_interactions GROUP BY provider ORDER BY value_usd DESC\`,
+  sql\`SELECT * FROM ai_interactions ORDER BY created_at DESC LIMIT 10\`
+])
+return res.json({ totals: totals[0], by_provider: byProvider, recent })`
+  },
+
+  "malloyyo-neon-backend": {
+    title: "malloyyo-neon-backend",
+    file: "skills/malloyyo-neon-backend/SKILL.md",
+    category: "Data & API",
+    what: "Configures Malloyyo (a separate Vercel project) to serve the Malloy semantic model as an MCP server, with both data sources (ai_interactions and cpm_benchmarks) reading from Neon Postgres. Documents deployment, env vars, available query views, and the rationale for switching from GitHub Parquet to Neon.",
+    when: "Use when setting up Malloyyo on a new Vercel project, changing the database backend, troubleshooting Malloy query failures, or adding a new named view to the model.",
+    how: [
+      "Ensure <code>DATABASE_URL</code> is set in Malloyyo's Vercel env — same value as cpm-vercel",
+      "Both sources now use <code>neon.table('public.tablename')</code> — no more DuckDB Parquet URL",
+      "After editing any .malloy file: <code>vercel --prod</code> from the malloyyo project directory",
+      "Query via MCP: <code>{ tool: 'malloyyo_query', args: { source: 'interactions', view: 'roi_by_provider' } }</code>",
+      "Available CPM views: by_channel_month, channel_ranking, seasonal_pattern, yoy_comparison, annual_by_channel"
+    ],
+    uses: ["malloy-semantic-model", "neon-postgres"],
+    usedBy: [],
+    pattern: `-- index.malloy (both sources now on Neon)
+source: interactions    is neon.table('public.ai_interactions') extend { ... }
+source: cpm_benchmarks  is neon.table('public.cpm_benchmarks')  extend { ... }
+
+-- malloy-config.json
+{
+  "connections": {
+    "neon": { "is": "postgres", "connectionString": { "env": "DATABASE_URL" } }
+  }
+}`
+  }
+}
+
+function openSkill(id) {
+  const skill = SKILLS[id]
+  if (!skill) return
+
+  document.getElementById("modalTitle").textContent = skill.title
+  document.getElementById("modalFile").textContent = skill.file
+
+  const usesHTML = skill.uses.length
+    ? skill.uses.map(s => `<span class="dep-chip dep-uses" onclick="openSkill('${s}')">${s}</span>`).join("")
+    : '<span style="color:var(--muted);font-size:12px">No upstream dependencies</span>'
+
+  const usedByHTML = skill.usedBy.length
+    ? skill.usedBy.map(s => `<span class="dep-chip dep-usedby" onclick="openSkill('${s}')">${s}</span>`).join("")
+    : '<span style="color:var(--muted);font-size:12px">Not consumed by other skills (entry point)</span>'
+
+  const stepsHTML = skill.how.map(s => `<li>${s}</li>`).join("")
+
+  document.getElementById("modalBody").innerHTML = `
+    <div class="modal-section">
+      <h3>What it does</h3>
+      <p>${skill.what}</p>
+    </div>
+
+    <div class="modal-section">
+      <h3>When to use it</h3>
+      <p>${skill.when}</p>
+    </div>
+
+    <div class="modal-section">
+      <h3>How to use it — step by step</h3>
+      <ol class="use-steps">${stepsHTML}</ol>
+    </div>
+
+    <div class="modal-section">
+      <h3>Uses these skills</h3>
+      <div class="dep-list">${usesHTML}</div>
+    </div>
+
+    <div class="modal-section">
+      <h3>Used by these skills</h3>
+      <div class="dep-list">${usedByHTML}</div>
+    </div>
+
+    <div class="modal-section">
+      <h3>Key pattern</h3>
+      <div class="code-block">${escapeHtml(skill.pattern)}</div>
+    </div>
+  `
+
+  document.getElementById("modalOverlay").classList.add("open")
+}
+
+function escapeHtml(str) {
+  return str.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+}
+
+function closeModal(e) {
+  if (e.target === document.getElementById("modalOverlay")) {
+    document.getElementById("modalOverlay").classList.remove("open")
+  }
+}
+function closeModalDirect() {
+  document.getElementById("modalOverlay").classList.remove("open")
+}
+
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") document.getElementById("modalOverlay").classList.remove("open")
+})
+
+function filterSkills(query) {
+  const q = query.toLowerCase()
+  document.querySelectorAll(".skill-card").forEach(card => {
+    const text = card.textContent.toLowerCase()
+    card.classList.toggle("hidden", q.length > 0 && !text.includes(q))
+  })
+  document.querySelectorAll(".flow-item, .flow-box").forEach(el => {
+    const text = el.textContent.toLowerCase()
+    el.style.opacity = (q.length > 0 && !text.includes(q)) ? "0.3" : "1"
+  })
+}
+
+// Sidebar active state
+document.querySelectorAll(".sidebar-nav a").forEach(link => {
+  link.addEventListener("click", () => {
+    document.querySelectorAll(".sidebar-nav a").forEach(l => l.classList.remove("active"))
+    link.classList.add("active")
+  })
+})
+</script>
+</body>
+</html>
