@@ -43,17 +43,17 @@ jobs:
 
             # Build API payload from session JSON
             payload=$(jq '{
-              provider:      .provider,
-              tool:          .tool,
-              taskType:      .summary.primary_task_type,
-              description:   ([.tasks[].description] | join("; ")),
-              hoursEstimate: .summary.total_human_equivalent_hours,
-              hoursSource:   "measured",
-              valueUsd:      .summary.total_value_usd,
-              firstPass:     .summary.first_pass,
-              corrections:   (.summary.corrections // 0),
-              project:       .project,
-              sessionId:     .session_id
+              provider:       .provider,
+              tool:           .tool,
+              task_type:      .summary.primary_task_type,
+              description:    ([.tasks[].description] | join("; ")),
+              hours_estimate: .summary.total_human_equivalent_hours,
+              hours_source:   "measured",
+              value_usd:      .summary.total_value_usd,
+              first_pass:     .summary.first_pass,
+              corrections:    (.summary.corrections // 0),
+              project:        .project,
+              session_id:     .session_id
             }' "$file")
 
             echo "Payload: $payload"
