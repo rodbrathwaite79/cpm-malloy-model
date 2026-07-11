@@ -1,0 +1,21 @@
+{
+  "type": "object",
+  "required": ["project", "provider", "tool", "task_type", "description", "hours_estimate", "value_usd"],
+  "properties": {
+    "project":        { "type": "string",  "description": "Project name, e.g. cpm-agent" },
+    "provider":       { "type": "string",  "description": "AI provider: anthropic | openai | google | cursor | github" },
+    "tool":           { "type": "string",  "description": "Tool used: guild | cowork | claude-code | chat" },
+    "task_type":      { "type": "string",  "description": "Type: code | document | analysis | testing | research | design" },
+    "description":    { "type": "string",  "description": "What was accomplished" },
+    "hours_estimate": { "type": "number",  "description": "Estimated human hours this run replaced" },
+    "hours_source":   { "type": "string",  "description": "estimated | measured" },
+    "value_usd":      { "type": "number",  "description": "Dollar value of human time saved" },
+    "first_pass":     { "type": "boolean", "description": "True if no human corrections were needed" },
+    "corrections":    { "type": "integer", "description": "Number of human corrections required" },
+    "session_id":     { "type": "string",  "description": "Guild session ID" },
+    "cost_model":     { "type": "string",  "description": "per-token | subscription | free" },
+    "cost_usd":       { "type": ["number", "null"], "description": "Actual LLM cost in USD" },
+    "output":         { "type": "string",  "description": "Brief description of output produced" },
+    "notes":          { "type": "string",  "description": "Additional context" }
+  }
+}

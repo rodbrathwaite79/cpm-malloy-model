@@ -6,6 +6,7 @@
   "type": "module",
   "engines": { "node": ">=20" },
   "dependencies": {
-    "duckdb": "latest"
+    "duckdb": "latest",
+    "@guildai-services/brathwaite~cpm-vercel": "^1.0.0"
   }
 }
