@@ -1,10 +1,50 @@
 {
   "session_id": "2026-07-10-2148",
   "session_start": "2026-07-11T01:48:51Z",
-  "session_end": null,
+  "session_end": "2026-07-11T18:38:30Z",
   "provider": "claude",
   "tool": "cowork",
   "project": "cpm-agent",
-  "tasks": [],
-  "summary": null
+  "tasks": [
+    {
+      "type": "code",
+      "description": "Removed broken @guildai-services/brathwaite~cpm-vercel-v2 npm integration (404) and restored logInteractionToNeon() using raw fetch(), mirroring existing postRunToNeon() pattern. Updated package.json in both agent/ and cpm-report-agent/.",
+      "start": "2026-07-11T01:48:51Z",
+      "end": "2026-07-11T02:30:00Z",
+      "duration_minutes": 41,
+      "human_equivalent_hours": 1.5,
+      "value_usd": 225,
+      "first_pass": true,
+      "output": "agent/cpm-report-agent/agent.ts"
+    },
+    {
+      "type": "code",
+      "description": "Fixed GitHub Actions log-sessions.yml: added null-summary guard to skip in-progress sessions, and removed agent/cpm-report-agent nested git repo from outer repo index (git rm --cached + .gitignore).",
+      "start": "2026-07-11T02:30:00Z",
+      "end": "2026-07-11T04:00:00Z",
+      "duration_minutes": 90,
+      "human_equivalent_hours": 1.0,
+      "value_usd": 150,
+      "first_pass": true,
+      "output": ".github/workflows/log-sessions.yml"
+    },
+    {
+      "type": "code",
+      "description": "Diagnosed Guild Babel SpreadElement errors (column 16 fingerprint, line-offset tracking) and replaced all object/array spread operators in agent.ts and cpm-report-agent/agent.ts with Object.assign() and .concat(). Moved 'use agent' directive inside run() body. Published as version 1.0.12.",
+      "start": "2026-07-11T04:00:00Z",
+      "end": "2026-07-11T18:38:30Z",
+      "duration_minutes": 878,
+      "human_equivalent_hours": 3.0,
+      "value_usd": 450,
+      "first_pass": true,
+      "output": "agent/cpm-report-agent/agent.ts"
+    }
+  ],
+  "summary": {
+    "primary_task_type": "code",
+    "total_human_equivalent_hours": 5.5,
+    "total_value_usd": 825,
+    "first_pass": true,
+    "corrections": 0
+  }
 }
