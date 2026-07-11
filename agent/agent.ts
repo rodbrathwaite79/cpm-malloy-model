@@ -44,7 +44,6 @@ import {
   progressLogNotifyEvent,
   type Task,
 } from "@guildai/agents-sdk"
-import { cpmVercelV2Tools } from "@guildai-services/brathwaite~cpm-vercel-v2"
 import { z } from "zod"
 
 // ── Pricing constants ─────────────────────────────────────────────────────────
@@ -75,9 +74,27 @@ async function postRunToNeon(record: {
   } catch { /* non-fatal */ }
 }
 
-// logInteractionToNeon() removed — self-logging now goes through the
-// brathwaite~cpm-vercel Guild integration (task.tools.cpm_vercel_log_interaction).
-// Auth is handled automatically by the connected credential in Guild's platform.
+// ── Self-log interaction to Neon (non-fatal) ─────────────────────────────────
+// Silently skipped when LOG_API_KEY is not set (e.g. in Guild sandbox).
+// Works when running locally via daily-report.mjs with .env populated.
+async function logInteractionToNeon(record: {
+  project: string; provider: string; tool: string; task_type: string
+  description: string; hours_estimate: number; hours_source?: string
+  value_usd: number; first_pass?: boolean; corrections?: number
+  session_id?: string; cost_model?: string; cost_usd?: number | null
+  output?: string; notes?: string
+}): Promise<void> {
+  const url = process.env.LOG_API_URL ?? "https://cpm-vercel.vercel.app/api/log-interaction"
+  const key = process.env.LOG_API_KEY
+  if (!key) return
+  try {
+    await fetch(url, {
+      method:  "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+      body:    JSON.stringify(record),
+    })
+  } catch { /* non-fatal */ }
+}
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -132,7 +149,7 @@ const EMPTY_STATE: AgentState = {
 }
 
 // ── Tools ──────────────────────────────────────────────────────────────────────
-const tools = { ...userInterfaceTools, ...guildTools, ...cpmVercelV2Tools }
+const tools = { ...userInterfaceTools, ...guildTools }
 type Tools = typeof tools
 
 // ── Input / Output ─────────────────────────────────────────────────────────────
@@ -391,27 +408,24 @@ Rules:
       dataPointsFound: dataPoints,
     })
 
-    // Self-log this run via the cpm-vercel Guild integration.
-    // Auth (LOG_API_KEY) is injected automatically by Guild's credential system.
-    try {
-      await task.tools.cpm_vercel_log_interaction({
-        project:        "cpm-agent",
-        provider:       "anthropic",
-        tool:           "guild",
-        task_type:      "analysis",
-        description:    `CPM benchmark analysis — ${dataPoints} data points — ${outcome} run. ${question.slice(0, 120)}`,
-        hours_estimate: ANALYST_MIN_PER_REPORT_RUN / 60,
-        hours_source:   "estimated",
-        value_usd:      outcome === "autonomous" ? SAVED_PER_AUTONOMOUS_RUN : 0,
-        first_pass:     outcome === "autonomous",
-        corrections:    outcome !== "autonomous" ? 1 : 0,
-        session_id:     task.sessionId,
-        cost_model:     "per-token",
-        cost_usd:       todayCost > 0 ? todayCost : null,
-        output:         `CPM report: ${dataPoints} data points`,
-        notes:          `${displayState.autonomousRuns}/${displayState.totalRuns} runs autonomous`,
-      })
-    } catch { /* non-fatal — run succeeds even if self-log fails */ }
+    // Self-log this run to Neon (non-fatal; silently skipped if LOG_API_KEY not set)
+    await logInteractionToNeon({
+      project:        "cpm-agent",
+      provider:       "anthropic",
+      tool:           "guild",
+      task_type:      "analysis",
+      description:    `CPM benchmark analysis — ${dataPoints} data points — ${outcome} run. ${question.slice(0, 120)}`,
+      hours_estimate: ANALYST_MIN_PER_REPORT_RUN / 60,
+      hours_source:   "estimated",
+      value_usd:      outcome === "autonomous" ? SAVED_PER_AUTONOMOUS_RUN : 0,
+      first_pass:     outcome === "autonomous",
+      corrections:    outcome !== "autonomous" ? 1 : 0,
+      session_id:     task.sessionId,
+      cost_model:     "per-token",
+      cost_usd:       todayCost > 0 ? todayCost : null,
+      output:         `CPM report: ${dataPoints} data points`,
+      notes:          `${displayState.autonomousRuns}/${displayState.totalRuns} runs autonomous`,
+    })
   }
 
   // ── Build metrics dashboard ──────────────────────────────────────────────────
