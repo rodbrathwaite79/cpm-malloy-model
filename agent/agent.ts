@@ -226,11 +226,10 @@ async function run(input: Input, task: Task<Tools, AgentState>): Promise<Output>
       implemented: false,
     }
 
-    const updatedState: AgentState = {
-      ...state,
-      changeRequests:      [...(state.changeRequests ?? []), record],
+    const updatedState: AgentState = Object.assign({}, state, {
+      changeRequests:      (state.changeRequests ?? []).concat([record]),
       totalChangeRequests: (state.totalChangeRequests ?? 0) + 1,
-    }
+    })
     await task.save(updatedState)
 
     const changeRateMsg = buildChangeRateSummary(updatedState)
@@ -261,16 +260,15 @@ ${changeRateMsg}
     const { sessionId, notes } = data.markImplemented
     const updatedRequests = (state.changeRequests ?? []).map(cr =>
       cr.sessionId === sessionId
-        ? { ...cr, implemented: true, implementedAt: today, implementationNotes: notes ?? "" }
+        ? Object.assign({}, cr, { implemented: true, implementedAt: today, implementationNotes: notes ?? "" })
         : cr
     )
     const implementedCount = updatedRequests.filter(cr => cr.implemented).length
 
-    const updatedState: AgentState = {
-      ...state,
+    const updatedState: AgentState = Object.assign({}, state, {
       changeRequests:   updatedRequests,
       implementedChanges: implementedCount,
-    }
+    })
     await task.save(updatedState)
 
     const implementationRate = updatedState.totalChangeRequests > 0
@@ -385,8 +383,7 @@ Rules:
       estimatedCostUsd: todayCost,
     }
 
-    displayState = {
-      ...state,
+    displayState = Object.assign({}, state, {
       totalRuns:             (state.totalRuns ?? 0) + 1,
       autonomousRuns:        (state.autonomousRuns ?? 0) + (outcome === "autonomous" ? 1 : 0),
       hitlRuns:              (state.hitlRuns      ?? 0) + (outcome === "hitl"       ? 1 : 0),
@@ -394,10 +391,10 @@ Rules:
       totalInputTokens:      (state.totalInputTokens  ?? 0) + todayInputTokens,
       totalOutputTokens:     (state.totalOutputTokens ?? 0) + todayOutputTokens,
       totalEstimatedCostUsd: (state.totalEstimatedCostUsd ?? 0) + todayCost,
-      runHistory:            [...(state.runHistory ?? []).slice(-29), thisRun],
+      runHistory:            (state.runHistory ?? []).slice(-29).concat([thisRun]),
       firstRunDate:          state.firstRunDate ?? today,
       lastRunDate:           today,
-    }
+    })
 
     await task.save(displayState)
 
