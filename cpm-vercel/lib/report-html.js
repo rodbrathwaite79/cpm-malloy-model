@@ -335,7 +335,7 @@ export function buildEmailMetricsSection(stats, runHistory, thisRun) {
 }
 
 // ── Main email report ─────────────────────────────────────────────────────────
-export function buildHtmlReport(rows, webFindings, aiInsights, verifiedNewData, runDate, metricsSection, hasAnthropicKey) {
+export function buildHtmlReport(rows, webFindings, aiInsights, verifiedNewData, runDate, hasAnthropicKey) {
   const enriched = computeChanges(rows)
 
   const latestByChannel = {}
@@ -431,7 +431,6 @@ export function buildHtmlReport(rows, webFindings, aiInsights, verifiedNewData, 
   ${aiSection}
   ${buildEmailTrendChart(enriched)}
   ${buildEmailTrendTable(enriched)}
-  ${metricsSection}
 
   <div style="border-top:1px solid #1e293b;margin-top:16px;padding-top:14px;color:#475569;font-size:11px;text-align:center;">
     CPM Report Agent · Vercel + Neon · Brave Search${hasAnthropicKey ? " + Claude AI" : ""}

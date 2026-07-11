@@ -808,7 +808,7 @@ function buildEmailTrendTable(enriched) {
 }
 
 // ── Email report (static HTML — no JavaScript, all email clients) ─────────────
-function buildHtmlReport(rows, webFindings, aiInsights, verifiedNewData, runDate, dashboardPath, metricsSection = "") {
+function buildHtmlReport(rows, webFindings, aiInsights, verifiedNewData, runDate, dashboardPath) {
   const enriched = computeChanges(rows)
 
   // Latest per channel (for summary cards)
@@ -903,9 +903,6 @@ function buildHtmlReport(rows, webFindings, aiInsights, verifiedNewData, runDate
 
   <!-- 6-Month Trend Table -->
   ${emailTrendTable}
-
-  <!-- Agent Metrics -->
-  ${metricsSection}
 
   <!-- Footer -->
   <div style="border-top:1px solid #1e293b;margin-top:16px;padding-top:14px;color:#475569;font-size:11px;text-align:center;">
@@ -1437,8 +1434,6 @@ async function main() {
   } catch (e) {
     console.warn("      Could not save metrics:", e.message)
   }
-  const metricsSection = buildEmailMetricsSection(updatedMetrics, thisRunRecord)
-
   // Save interactive dashboard to disk
   try {
     const { mkdirSync } = await import("fs")
@@ -1449,7 +1444,7 @@ async function main() {
     console.warn("      Could not save dashboard:", e.message)
   }
 
-  const html    = buildHtmlReport(allRows, webFindings, aiInsights, verifiedNewData, runDate, dashboardPath, metricsSection)
+  const html    = buildHtmlReport(allRows, webFindings, aiInsights, verifiedNewData, runDate, dashboardPath)
   const subject = `📊 CPM Month-over-Month Report — ${runDate}`
 
   // Attach the interactive dashboard HTML

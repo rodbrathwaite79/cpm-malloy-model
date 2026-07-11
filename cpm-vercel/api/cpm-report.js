@@ -26,7 +26,7 @@ import {
 } from "../lib/database.js"
 import {
   CHANNELS, CHANNEL_LABELS, MONTH_NAMES,
-  computeChanges, buildHtmlReport, buildEmailMetricsSection, buildInteractiveDashboard,
+  computeChanges, buildHtmlReport, buildInteractiveDashboard,
 } from "../lib/report-html.js"
 import { synthesizeInsights } from "../lib/insights.js"
 
@@ -381,16 +381,12 @@ export default async function handler(req, res) {
   // Write run to Neon
   await insertRun({ runDate: today, source: "vercel", outcome: runOutcome, inputTokens: synthIn, outputTokens: synthOut, dataPointsFound: verifiedNewData.length })
 
-  // Fetch updated stats + history for the email
-  const [stats, runHistory] = await Promise.all([getRunStats(), getRecentRuns(30)])
-  const metricsSection      = buildEmailMetricsSection(stats, runHistory, thisRun)
-
   // Build dashboard and attach
   const dashHtml   = buildInteractiveDashboard(allRows, runDate, aiInsights)
   const dashBase64 = Buffer.from(dashHtml, "utf-8").toString("base64")
   const attachments = [{ filename: "CPM-Dashboard.html", content: dashBase64 }]
 
-  const html    = buildHtmlReport(allRows, webFindings, aiInsights, verifiedNewData, runDate, metricsSection, !!(cfg().geminiKey || cfg().anthropicKey))
+  const html    = buildHtmlReport(allRows, webFindings, aiInsights, verifiedNewData, runDate, !!(cfg().geminiKey || cfg().anthropicKey))
   const subject = `📊 CPM Month-over-Month Report — ${runDate}`
 
   await sendEmail(subject, html, attachments)
