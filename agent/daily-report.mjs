@@ -675,6 +675,94 @@ function buildEmailBarChart(enriched) {
   </div>`
 }
 
+// ── 6-month SVG trend chart (by channel) ─────────────────────────────────────
+const CHANNEL_COLORS = {
+  paid_social:          '#3b82f6',
+  paid_search:          '#22c55e',
+  programmatic_display: '#f59e0b',
+  video_ctv:            '#a855f7',
+  streaming_audio:      '#ec4899',
+}
+
+function buildEmailTrendChart(enriched) {
+  const periods = [...new Set(enriched.map(r => r.period_sort))]
+    .sort((a, b) => a - b)
+    .slice(-6)
+  if (periods.length < 2) return ""
+
+  const byKey = {}
+  for (const r of enriched) byKey[`${r.channel}|${r.period_sort}`] = r
+
+  const allCpms = []
+  for (const ch of CHANNELS)
+    for (const ps of periods) { const r = byKey[`${ch.key}|${ps}`]; if (r) allCpms.push(r.avg_cpm) }
+  if (allCpms.length === 0) return ""
+
+  const minCpm  = Math.max(0, Math.floor(Math.min(...allCpms) * 0.88))
+  const maxCpm  = Math.ceil(Math.max(...allCpms) * 1.06)
+  const range   = maxCpm - minCpm || 1
+
+  const W = 560, H = 210
+  const mL = 50, mR = 14, mT = 18, mB = 38
+  const pW = W - mL - mR
+  const pH = H - mT - mB
+
+  const toX = i   => mL + (i / (periods.length - 1)) * pW
+  const toY = cpm => mT + pH - ((cpm - minCpm) / range) * pH
+
+  const ticks = 4
+  let grid = ''
+  for (let i = 0; i <= ticks; i++) {
+    const val = minCpm + (range / ticks) * i
+    const y   = toY(val).toFixed(1)
+    grid += `<line x1="${mL}" y1="${y}" x2="${W - mR}" y2="${y}" stroke="#1e293b" stroke-width="1"/>`
+    grid += `<text x="${mL - 5}" y="${(+y + 3.5).toFixed(1)}" text-anchor="end" fill="#475569" font-size="9" font-family="-apple-system,sans-serif">$${Math.round(val)}</text>`
+  }
+
+  const xLabels = periods.map((ps, i) => {
+    const mo  = ps % 100
+    const yr  = Math.floor(ps / 100)
+    const lbl = `${(MONTH_NAMES[mo] ?? '').slice(0, 3)} '${String(yr).slice(2)}`
+    return `<text x="${toX(i).toFixed(1)}" y="${(mT + pH + 15).toFixed(1)}" text-anchor="middle" fill="#64748b" font-size="9" font-family="-apple-system,sans-serif">${lbl}</text>`
+  }).join('')
+
+  let lines = ''
+  for (const ch of CHANNELS) {
+    const color = CHANNEL_COLORS[ch.key] ?? '#94a3b8'
+    const pts   = periods.map((ps, i) => {
+      const r = byKey[`${ch.key}|${ps}`]
+      return r ? { x: toX(i), y: toY(r.avg_cpm) } : null
+    })
+    let d = '', inSeg = false
+    for (const pt of pts) {
+      if (pt) { d += `${inSeg ? 'L' : 'M'}${pt.x.toFixed(1)},${pt.y.toFixed(1)} `; inSeg = true }
+      else { inSeg = false }
+    }
+    if (d) lines += `<path d="${d.trim()}" fill="none" stroke="${color}" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>`
+    for (const pt of pts.filter(Boolean))
+      lines += `<circle cx="${pt.x.toFixed(1)}" cy="${pt.y.toFixed(1)}" r="3.2" fill="${color}"/>`
+  }
+
+  const legendItems = CHANNELS.map(ch => {
+    const color = CHANNEL_COLORS[ch.key] ?? '#94a3b8'
+    return `<span style="display:inline-flex;align-items:center;gap:4px;margin-right:12px;white-space:nowrap;">
+      <span style="display:inline-block;width:12px;height:3px;background:${color};border-radius:2px;"></span>
+      <span style="color:#94a3b8;font-size:10px;">${ch.label}</span>
+    </span>`
+  }).join('')
+
+  return `
+  <div style="margin-bottom:24px;">
+    <div style="color:#f1f5f9;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">6-Month CPM Trend by Channel</div>
+    <div style="background:#1e293b;border-radius:8px;padding:16px 14px 12px;">
+      <svg width="100%" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="display:block;overflow:visible;">
+        ${grid}${lines}${xLabels}
+      </svg>
+      <div style="margin-top:10px;display:flex;flex-wrap:wrap;">${legendItems}</div>
+    </div>
+  </div>`
+}
+
 // ── Compact 6-month cross-channel trend table (email-safe) ───────────────────
 function buildEmailTrendTable(enriched) {
   const periods = [...new Set(enriched.map(r => r.period_sort))]
@@ -747,8 +835,8 @@ function buildHtmlReport(rows, webFindings, aiInsights, verifiedNewData, runDate
     </div>`
   }).join("")
 
-  // Charts and compact trend table (replace long per-channel tables)
-  const emailBarChart   = buildEmailBarChart(enriched)
+  // Charts and compact trend table
+  const emailTrendChart = buildEmailTrendChart(enriched)
   const emailTrendTable = buildEmailTrendTable(enriched)
 
   // New verified data section
@@ -810,8 +898,8 @@ function buildHtmlReport(rows, webFindings, aiInsights, verifiedNewData, runDate
 
   ${aiSection}
 
-  <!-- CPM by Channel Bar Chart -->
-  ${emailBarChart}
+  <!-- 6-Month CPM Trend Chart by Channel -->
+  ${emailTrendChart}
 
   <!-- 6-Month Trend Table -->
   ${emailTrendTable}
