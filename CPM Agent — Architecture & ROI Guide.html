@@ -197,8 +197,8 @@
       <div class="comp-card">
         <div class="comp-icon">⚙️</div>
         <h3>Guild <span class="pill pill-purple">AGENT RUNTIME</span></h3>
-        <p>Guild hosts and runs the <code style="font-size:11px;background:rgba(167,139,250,.1);color:var(--purple);padding:2px 6px;border-radius:4px">cpm-report-agent</code> TypeScript agent — a more advanced version of the CPM report that uses an AI model. Guild handles execution, state management, scheduling via triggers, and full session-level audit logs for every run.</p>
-        <div class="plain">Like a managed server for your AI agent — it runs your code, tracks every run, and shows you exactly what happened and how much it cost.</div>
+        <p>Guild hosts the <code style="font-size:11px;background:rgba(167,139,250,.1);color:var(--purple);padding:2px 6px;border-radius:4px">cpm-report-agent</code> TypeScript agent — an ROI metrics tracking agent that layers on top of the CPM report. After Pipeline 1 runs and fetches data, it can pass that data to the Guild agent, which generates AI analysis, tracks token costs, and logs run outcomes. Guild handles execution, persistent state, and full session-level audit logs for every invocation.</p>
+        <div class="plain">Like a scorekeeper attached to the pipeline — it doesn't run the race, but it records exactly what happened, how much it cost, and whether the result was any good.</div>
       </div>
 
     </div>
@@ -209,7 +209,7 @@
 <section id="architecture">
   <div class="container">
     <h2>How Everything Connects</h2>
-    <p class="section-sub">Two separate pipelines sharing one database.</p>
+    <p class="section-sub">Two automated pipelines and one metrics layer, sharing one database.</p>
     <div class="arch">
 ┌─────────────────────────────────────────────────────────────────────┐
 │                    PIPELINE 1: CPM PRICE REPORT                     │
@@ -246,23 +246,23 @@
 └─────────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────┐
-│                    PIPELINE 3: GUILD AGENT                          │
+│              GUILD AGENT: ROI METRICS LAYER (manual trigger)        │
 │                                                                     │
-│  guild agent save --publish  (from cpm-report-agent/ directory)     │
-│       │                                                             │
-│       ▼                                                             │
-│  Babel compiler: async run() → resumable state machine              │
-│       │                                                             │
-│       ▼                                                             │
-│  Guild runtime executes agent (version 1.0.12)                      │
-│       │                                                             │
-│       ├──→  Brave Search API  (CPM data)                            │
-│       ├──→  Neon Postgres     (store results)                       │
-│       ├──→  Resend            (email report)                        │
-│       ├──→  POST /api/log-interaction  (self-log to ROI tracker)    │
-│       └──→  Guild session log (full audit trail, every tool call)   │
+│  Pipeline 1 fetches data, then optionally calls the Guild agent:    │
 │                                                                     │
-│  Triggered by: Guild time trigger (Monday 8am) or manual chat       │
+│  { rows, webFindings, outcome, dataPoints }  ──→  Guild agent       │
+│                                                     │               │
+│                                                     ▼               │
+│                                          Generates AI analysis      │
+│                                          Tracks token cost          │
+│                                          Logs run outcome           │
+│                                                     │               │
+│                                                     ├──→  Guild state (persistent metrics)  │
+│                                                     ├──→  POST /api/log-interaction         │
+│                                                     └──→  Guild session log (audit trail)   │
+│                                                                     │
+│  Triggered by: manual invocation (no time trigger configured)       │
+│  Published:    v1.0.12 · rod.brathwaite/rod-workspace               │
 └─────────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -448,8 +448,8 @@
       </div>
       <div class="gov-card">
         <h3>⏰ Trigger Management</h3>
-        <p>A Guild time trigger fires the agent on schedule (Monday 8am). You can pause, resume, or inspect past runs from the trigger — without touching the agent code.</p>
-        <p style="margin-top:8px"><code>guild trigger list</code> — all triggers<br>
+        <p>No time trigger is currently configured — the Guild agent is invoked manually or called by Pipeline 1. If you ever want to add a schedule, Guild supports time triggers that can fire the agent on a cron expression without touching the agent code.</p>
+        <p style="margin-top:8px"><code>guild trigger list</code> — all triggers (currently none)<br>
         <code>guild trigger sessions &lt;id&gt;</code> — scheduled run history<br>
         <code>guild trigger deactivate &lt;id&gt;</code> — pause without deleting</p>
       </div>

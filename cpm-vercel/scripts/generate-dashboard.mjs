@@ -1,6 +1,11 @@
 /**
  * generate-dashboard.mjs
  *
+ * LOCAL PREVIEW TOOL — not part of the production pipeline.
+ * Use this to inspect the interactive dashboard without sending an email.
+ * The production dashboard is generated and emailed automatically by cpm-report.js
+ * every Monday via Vercel cron.
+ *
  * Generates CPM-Dashboard.html locally without triggering an email.
  * Uses real Neon data if DATABASE_URL is set; falls back to demo data otherwise.
  *
