@@ -44,7 +44,7 @@ import {
   progressLogNotifyEvent,
   type Task,
 } from "@guildai/agents-sdk"
-import { cpmVercelTools } from "@guildai-services/brathwaite~cpm-vercel"
+import { cpmVercelV2Tools } from "@guildai-services/brathwaite~cpm-vercel-v2"
 import { z } from "zod"
 
 // ── Pricing constants ─────────────────────────────────────────────────────────
@@ -132,7 +132,7 @@ const EMPTY_STATE: AgentState = {
 }
 
 // ── Tools ──────────────────────────────────────────────────────────────────────
-const tools = { ...userInterfaceTools, ...guildTools, ...cpmVercelTools }
+const tools = { ...userInterfaceTools, ...guildTools, ...cpmVercelV2Tools }
 type Tools = typeof tools
 
 // ── Input / Output ─────────────────────────────────────────────────────────────
