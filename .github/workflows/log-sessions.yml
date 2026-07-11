@@ -41,6 +41,12 @@ jobs:
               continue
             fi
 
+            # Skip incomplete sessions (summary not yet written)
+            if [ "$(jq '.summary' "$file")" = "null" ]; then
+              echo "⏭ Session not yet complete (summary is null) — skipping $file"
+              continue
+            fi
+
             # Build API payload from session JSON
             payload=$(jq '{
               provider:       .provider,
