@@ -1,4 +1,3 @@
-"use agent"
 /**
  * cpm-report-agent — Guild.ai Agent (v2)
  *
@@ -178,6 +177,7 @@ const CHANNEL_LABELS: Record<string, string> = {
 
 // ── Main run ───────────────────────────────────────────────────────────────────
 async function run(input: Input, task: Task<Tools, AgentState>): Promise<Output> {
+  "use agent"
 
   // ── Parse input ─────────────────────────────────────────────────────────────
   let data: {
@@ -199,13 +199,13 @@ async function run(input: Input, task: Task<Tools, AgentState>): Promise<Output>
 
   const today = new Date().toISOString().slice(0, 10)
   await task.tools.ui_notify(progressLogNotifyEvent("Restoring agent state…"))
-  const state: AgentState = (await task.restore()) ?? { ...EMPTY_STATE }
+  const state: AgentState = (await task.restore()) ?? EMPTY_STATE
 
   // ════════════════════════════════════════════════════════════════════════════
   // MODE F — Reset
   // ════════════════════════════════════════════════════════════════════════════
   if (data.reset === true) {
-    await task.save({ ...EMPTY_STATE })
+    await task.save(EMPTY_STATE)
     const msg = "✅ Agent state reset. All run history and change requests cleared."
     await task.tools.ui_notify(textPromptNotifyEvent({ type: "text", text: msg }))
     return { type: "text", text: msg }
