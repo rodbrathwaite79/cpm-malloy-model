@@ -148,7 +148,9 @@ const EMPTY_STATE: AgentState = {
 }
 
 // ── Tools ──────────────────────────────────────────────────────────────────────
-const tools = { ...userInterfaceTools, ...guildTools }
+// Object.assign used instead of spread — Guild's Babel compiler can't statically
+// resolve SpreadElement when the source is an imported (non-local) binding.
+const tools = Object.assign({}, userInterfaceTools, guildTools) as typeof userInterfaceTools & typeof guildTools
 type Tools = typeof tools
 
 // ── Input / Output ─────────────────────────────────────────────────────────────
