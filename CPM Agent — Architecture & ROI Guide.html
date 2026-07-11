@@ -28,6 +28,21 @@
   nav a { color: var(--subtle); text-decoration: none; font-size: 12px; font-weight: 600; letter-spacing: .5px; text-transform: uppercase; white-space: nowrap; padding: 14px 14px; border-bottom: 2px solid transparent; transition: all .2s; }
   nav a:hover { color: var(--text); border-bottom-color: var(--indigo); }
 
+  /* GUILD GOVERNANCE */
+  .gov-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-top: 16px; }
+  .gov-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 22px 24px; }
+  .gov-card h3 { font-size: 14px; font-weight: 700; margin-bottom: 8px; }
+  .gov-card p { font-size: 13px; color: var(--subtle); margin-bottom: 10px; }
+  .gov-card code { font-size: 12px; background: rgba(99,102,241,.1); color: var(--indigo); padding: 2px 7px; border-radius: 4px; }
+  .gov-table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 13px; }
+  .gov-table th { background: var(--muted); color: var(--subtle); font-size: 11px; letter-spacing: .5px; text-transform: uppercase; padding: 8px 12px; text-align: left; }
+  .gov-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .gov-table tr:last-child td { border-bottom: none; }
+  .gov-table td:first-child { color: var(--text); font-weight: 600; white-space: nowrap; }
+  .gov-table td:last-child { color: var(--subtle); }
+  .warn-box { background: rgba(245,158,11,.07); border: 1px solid rgba(245,158,11,.2); border-radius: 10px; padding: 16px 20px; font-size: 13px; color: var(--text); margin-top: 16px; }
+  .warn-box strong { color: var(--amber); }
+
   .container { max-width: 1080px; margin: 0 auto; padding: 0 32px; }
   section { padding: 60px 0; border-bottom: 1px solid var(--border); }
   section:last-child { border-bottom: none; }
@@ -106,6 +121,7 @@
   <a href="#architecture">Architecture</a>
   <a href="#roi">ROI Tracking</a>
   <a href="#logging">Session Logging</a>
+  <a href="#guild">Guild Agent</a>
   <a href="#rates">Rate Table</a>
 </nav>
 
@@ -121,7 +137,7 @@
 <section id="pieces">
   <div class="container">
     <h2>The Pieces of the System</h2>
-    <p class="section-sub">Seven services work together. Here's what each one does.</p>
+    <p class="section-sub">Eight services work together. Here's what each one does.</p>
 
     <div class="analogy">
       <strong>Think of it like a restaurant kitchen.</strong> Vercel is the stove (does the actual cooking on a timer). Neon is the walk-in fridge (stores everything safely). GitHub is the recipe book (holds all the instructions). Resend is the waiter (delivers the result to you). Brave Search is the food supplier (brings in fresh ingredients weekly).
@@ -178,6 +194,13 @@
         <div class="plain">Like a backup generator — you never need it, but it's there if the main power goes out.</div>
       </div>
 
+      <div class="comp-card">
+        <div class="comp-icon">⚙️</div>
+        <h3>Guild <span class="pill pill-purple">AGENT RUNTIME</span></h3>
+        <p>Guild hosts and runs the <code style="font-size:11px;background:rgba(167,139,250,.1);color:var(--purple);padding:2px 6px;border-radius:4px">cpm-report-agent</code> TypeScript agent — a more advanced version of the CPM report that uses an AI model. Guild handles execution, state management, scheduling via triggers, and full session-level audit logs for every run.</p>
+        <div class="plain">Like a managed server for your AI agent — it runs your code, tracks every run, and shows you exactly what happened and how much it cost.</div>
+      </div>
+
     </div>
   </div>
 </section>
@@ -220,6 +243,26 @@
 │       ├──→  POST to /api/log-interaction  (Vercel endpoint)         │
 │       ├──→  Neon Postgres  (stores interaction record)              │
 │       └──→  Moves file: pending/ → posted/  (auto-archive)         │
+└─────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────┐
+│                    PIPELINE 3: GUILD AGENT                          │
+│                                                                     │
+│  guild agent save --publish  (from cpm-report-agent/ directory)     │
+│       │                                                             │
+│       ▼                                                             │
+│  Babel compiler: async run() → resumable state machine              │
+│       │                                                             │
+│       ▼                                                             │
+│  Guild runtime executes agent (version 1.0.12)                      │
+│       │                                                             │
+│       ├──→  Brave Search API  (CPM data)                            │
+│       ├──→  Neon Postgres     (store results)                       │
+│       ├──→  Resend            (email report)                        │
+│       ├──→  POST /api/log-interaction  (self-log to ROI tracker)    │
+│       └──→  Guild session log (full audit trail, every tool call)   │
+│                                                                     │
+│  Triggered by: Guild time trigger (Monday 8am) or manual chat       │
 └─────────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -345,6 +388,86 @@
     <div class="analogy" style="margin:0">
       <strong>Why GitHub Actions instead of a local script?</strong> A local script only runs on the computer it's installed on. GitHub Actions runs in the cloud — so it works whether you're on your MacBook Pro, a different Mac, or any other machine. You push from anywhere; the logging happens automatically.
     </div>
+  </div>
+</section>
+
+<!-- GUILD AGENT -->
+<section id="guild">
+  <div class="container">
+    <h2>Guild Agent — Internals & Governance</h2>
+    <p class="section-sub">How the hosted TypeScript agent works, and how to stay in control of it.</p>
+
+    <div class="analogy">
+      <strong>What Guild does:</strong> Guild is the platform that hosts and runs the <code style="background:rgba(99,102,241,.12);color:var(--indigo);padding:2px 7px;border-radius:4px">cpm-report-agent</code> TypeScript agent in the cloud. Every time you publish a new version (<code style="background:rgba(99,102,241,.12);color:var(--indigo);padding:2px 7px;border-radius:4px">guild agent save --publish</code>), Guild compiles the code, validates it, and makes it available to run. Every run creates a session with a full audit trail.
+    </div>
+
+    <br>
+    <h3>How the Babel Compiler Works (and Why It Matters)</h3>
+    <p style="color:var(--subtle);font-size:14px;margin:8px 0 16px">The agent uses Guild's <strong>AutomaticallyManagedStateAgent</strong> pattern. You write a plain <code style="background:rgba(99,102,241,.1);color:var(--indigo);padding:1px 6px;border-radius:4px">async run()</code> function, and Guild's Babel compiler secretly transforms it into a <em>resumable state machine</em> — code that can pause mid-run, save its state, and pick up exactly where it left off after a tool call completes or the user responds.</p>
+
+    <div class="warn-box">
+      <strong>⚠️ Critical maintenance rule:</strong> The Babel compiler cannot handle <code style="background:rgba(245,158,11,.1);color:var(--amber);padding:1px 6px;border-radius:4px">{ ...spreadSyntax }</code> or <code style="background:rgba(245,158,11,.1);color:var(--amber);padding:1px 6px;border-radius:4px">[...arrays]</code> when the source is an imported variable. Any spread using an import or module-level constant inside the <code>run()</code> body will cause the build to fail with a <em>NotImplemented: SpreadElement</em> error. Always use <code>Object.assign()</code> and <code>.concat()</code> instead.
+    </div>
+
+    <br>
+    <h3>Compiler Constraint Quick Reference</h3>
+    <table class="gov-table">
+      <thead><tr><th>Pattern to Avoid</th><th>Use Instead</th><th>Why</th></tr></thead>
+      <tbody>
+        <tr><td><code>{ ...importedVar, key: val }</code></td><td><code>Object.assign({}, importedVar, { key: val })</code></td><td>Spread on non-local label fails at build time</td></tr>
+        <tr><td><code>[...arr, newItem]</code></td><td><code>arr.concat([newItem])</code></td><td>Same SpreadElement restriction</td></tr>
+        <tr><td><code>Promise.all([a(), b()])</code></td><td><code>const a = await a(); const b = await b();</code></td><td>Promises can't survive state serialization</td></tr>
+        <tr><td><code>import { fn } from './helpers'</code> (if fn crosses an await)</td><td>Keep all awaited logic in agent.ts</td><td>External module frames are lost on resume</td></tr>
+        <tr><td><code>"use agent"</code> at file top level</td><td><code>"use agent"</code> as first line inside <code>run()</code></td><td>Module-level directive compiles the entire file</td></tr>
+      </tbody>
+    </table>
+
+    <br><br>
+    <h3>Governance — Staying in Control</h3>
+    <p style="color:var(--subtle);font-size:14px;margin:8px 0 16px">Guild gives you three layers of visibility into every agent run.</p>
+
+    <div class="gov-grid">
+      <div class="gov-card">
+        <h3>📊 Usage Insights (Token Cost)</h3>
+        <p>Shows LLM token consumption over time. This is your cost-governance view — if a run consumed 10× the usual tokens, you'll see the spike here.</p>
+        <p><strong style="color:var(--indigo)">URL:</strong> <a href="https://app.guild.ai/users/rod.brathwaite/insights/usage" style="color:var(--indigo);font-size:12px" target="_blank">app.guild.ai → Usage Insights</a></p>
+        <p style="margin-top:8px;font-size:12px">To cap costs: Settings → LLM Settings → Daily token limit. To use your own Anthropic key (BYOK): Settings → LLM Settings → Add API key.</p>
+      </div>
+      <div class="gov-card">
+        <h3>📋 Session Audit Trail</h3>
+        <p>Every agent run creates a session. Sessions show status (Completed / Failed), every tool call made, and the full event stream — like a flight recorder for each run.</p>
+        <p style="margin-top:8px"><code>guild session list</code> — all recent runs<br>
+        <code>guild session events &lt;id&gt;</code> — every step<br>
+        <code>guild session tasks &lt;id&gt;</code> — tool calls only</p>
+      </div>
+      <div class="gov-card">
+        <h3>🔖 Version History</h3>
+        <p>Every <code>guild agent save</code> creates a version. Published versions have a version number; failed builds stay as DRAFT. The history tells you exactly what code was live at any point in time.</p>
+        <p style="margin-top:8px"><code>guild agent versions</code> — full list<br>
+        Currently live: <strong style="color:var(--green)">v1.0.12 · PUBLISHED</strong></p>
+      </div>
+      <div class="gov-card">
+        <h3>⏰ Trigger Management</h3>
+        <p>A Guild time trigger fires the agent on schedule (Monday 8am). You can pause, resume, or inspect past runs from the trigger — without touching the agent code.</p>
+        <p style="margin-top:8px"><code>guild trigger list</code> — all triggers<br>
+        <code>guild trigger sessions &lt;id&gt;</code> — scheduled run history<br>
+        <code>guild trigger deactivate &lt;id&gt;</code> — pause without deleting</p>
+      </div>
+    </div>
+
+    <br>
+    <h3>Quick Governance Checklist</h3>
+    <table class="gov-table" style="margin-top:12px">
+      <thead><tr><th>Question</th><th>Where to look</th></tr></thead>
+      <tbody>
+        <tr><td>Did Monday's run succeed?</td><td><code>guild trigger sessions &lt;trigger-id&gt;</code> or Triggers in UI</td></tr>
+        <tr><td>How many tokens did it use?</td><td>Usage Insights → filter 7 days</td></tr>
+        <tr><td>What did the agent actually do step by step?</td><td><code>guild session events &lt;session-id&gt;</code></td></tr>
+        <tr><td>Which code version is currently live?</td><td><code>guild agent versions</code> → topmost PUBLISHED row</td></tr>
+        <tr><td>Why did a build fail?</td><td><code>guild agent versions</code> → FAILED row message — check agent.ts for any <code>...</code> spread syntax</td></tr>
+        <tr><td>Is self-logging working?</td><td>Check <code>/api/tracker-stats</code> — last session should appear in ai_interactions</td></tr>
+      </tbody>
+    </table>
   </div>
 </section>
 

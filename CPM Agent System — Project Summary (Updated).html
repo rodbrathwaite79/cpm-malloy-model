@@ -115,6 +115,7 @@
   <a href="#built">What Was Built</a>
   <a href="#results">Results</a>
   <a href="#howworks">How It Works</a>
+  <a href="#guild">Guild Agent</a>
   <a href="#auto">What's Automatic</a>
   <a href="#nextsteps">Next Steps</a>
 </nav>
@@ -157,7 +158,7 @@
 <section id="built">
   <div class="container">
     <h2>What Was Built</h2>
-    <p class="section-sub">Six major components, built in order, each building on the last.</p>
+    <p class="section-sub">Seven major components, built in order, each building on the last.</p>
     <div class="milestone-list">
 
       <div class="milestone">
@@ -211,6 +212,15 @@
           <h3>18-Skill Reference System</h3>
           <p>A complete library of 18 reusable "skills" — step-by-step instruction sets that tell Claude exactly how to do recurring tasks (deploy to Vercel, schedule a Mac job, write a Word doc, etc.). Each skill is documented and packaged. An interactive HTML guide makes them searchable and browsable.</p>
           <span class="tag tag-blue">✓ Documented &amp; Packaged</span>
+        </div>
+      </div>
+
+      <div class="milestone">
+        <div class="milestone-num">7</div>
+        <div class="milestone-body">
+          <h3>Guild Hosted Agent with Self-Logging</h3>
+          <p>The CPM report agent runs on Guild's cloud platform as a published TypeScript agent (<code style="font-size:12px;background:rgba(167,139,250,.1);color:var(--purple);padding:1px 6px;border-radius:4px">cpm-report-agent v1.0.12</code>). Guild's runtime compiles the agent code into a resumable state machine, records every run as a full session audit trail, and tracks LLM token consumption. After each successful run, the agent files its own timesheet entry to the ROI tracker — no manual step required. Every tool call, LLM response, and outcome is logged and inspectable via the Guild CLI or web UI.</p>
+          <span class="tag tag-green">✓ Live · v1.0.12 Published</span>
         </div>
       </div>
 
@@ -345,6 +355,62 @@
   </div>
 </section>
 
+<!-- GUILD AGENT -->
+<section id="guild">
+  <div class="container">
+    <h2>Guild Agent — How to Govern It</h2>
+    <p class="section-sub">Guild is where the hosted agent lives. Here's how to stay in control of it.</p>
+
+    <div class="two-col" style="margin-top:0">
+      <div class="info-card">
+        <h3 style="color:var(--purple)">📋 What Guild Tracks Automatically</h3>
+        <ul>
+          <li><strong>Session logs</strong> — every run, its outcome (Completed / Failed), and elapsed time</li>
+          <li><strong>Event stream</strong> — every tool call, LLM request, and state transition within a run</li>
+          <li><strong>Token usage</strong> — LLM input + output tokens per session, visible in Usage Insights</li>
+          <li><strong>Version history</strong> — every code publish, whether it passed validation, and the commit message</li>
+          <li><strong>Trigger runs</strong> — which scheduled trigger fired, when, and what session it spawned</li>
+        </ul>
+      </div>
+      <div class="info-card">
+        <h3 style="color:var(--blue)">🔑 Key CLI Commands</h3>
+        <ul>
+          <li><code style="font-size:12px;background:var(--bg);padding:1px 5px;border-radius:3px">guild agent versions</code> — see all versions, current status</li>
+          <li><code style="font-size:12px;background:var(--bg);padding:1px 5px;border-radius:3px">guild session list</code> — recent runs</li>
+          <li><code style="font-size:12px;background:var(--bg);padding:1px 5px;border-radius:3px">guild session events &lt;id&gt;</code> — full run trace</li>
+          <li><code style="font-size:12px;background:var(--bg);padding:1px 5px;border-radius:3px">guild trigger list</code> — scheduled triggers</li>
+          <li><code style="font-size:12px;background:var(--bg);padding:1px 5px;border-radius:3px">guild trigger sessions &lt;id&gt;</code> — runs from a trigger</li>
+          <li><code style="font-size:12px;background:var(--bg);padding:1px 5px;border-radius:3px">guild trigger deactivate &lt;id&gt;</code> — pause a trigger</li>
+        </ul>
+      </div>
+    </div>
+
+    <br>
+    <div class="two-col">
+      <div class="info-card">
+        <h3 style="color:var(--amber)">⚠️ Publishing a New Version</h3>
+        <p style="margin-bottom:10px">Run from inside <code style="font-size:12px;background:var(--bg);padding:1px 5px;border-radius:3px">agent/cpm-report-agent/</code>:</p>
+        <ul>
+          <li>Edit <code style="font-size:12px;background:var(--bg);padding:1px 5px;border-radius:3px">agent.ts</code> — make your changes</li>
+          <li>Run <code style="font-size:12px;background:var(--bg);padding:1px 5px;border-radius:3px">guild agent save --message "..." --publish</code></li>
+          <li>Watch for <strong style="color:var(--green)">PUBLISHED ✓</strong> — any FAILED status means a build error</li>
+          <li><strong>Never use <code>...spread</code> syntax</strong> inside <code>run()</code> — use <code>Object.assign()</code> instead or the Babel compiler will reject the build</li>
+        </ul>
+      </div>
+      <div class="info-card">
+        <h3 style="color:var(--green)">📊 Monitoring Costs</h3>
+        <p style="margin-bottom:10px">Guild tracks LLM token consumption per session. Check it at:</p>
+        <ul>
+          <li><a href="https://app.guild.ai/users/rod.brathwaite/insights/usage" target="_blank" style="color:var(--blue);font-size:13px">app.guild.ai → Insights → Usage</a></li>
+          <li>Filter by 7 or 30 days to spot unusual spikes</li>
+          <li>Set a daily token cap: Settings → LLM Settings → Daily token limit</li>
+          <li>Switch to your own Anthropic key (BYOK) to bypass Guild token billing: Settings → LLM Settings → Add API key</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
 <!-- WHAT'S AUTOMATIC -->
 <section id="auto">
   <div class="container">
@@ -361,6 +427,8 @@
           <li>Session file moved to archive after posting</li>
           <li>Cloud database backup (Neon handles this)</li>
           <li>Mac backup runner (launchd, also fires Monday 8am)</li>
+          <li>Guild agent self-logs each run to ROI tracker</li>
+          <li>Guild session audit trail created for every run</li>
         </ul>
       </div>
       <div class="info-card">
