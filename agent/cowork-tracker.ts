@@ -240,13 +240,13 @@ async function run(input: Input, task: Task<Tools, SessionState>): Promise<Outpu
   }
 
   await task.tools.ui_notify(progressLogNotifyEvent("Loading session state…"))
-  const state: SessionState = (await task.restore()) ?? { ...EMPTY_STATE }
+  const state: SessionState = (await task.restore()) ?? Object.assign({}, EMPTY_STATE)
 
   // ════════════════════════════════════════════════════════════════════════════
   // RESET
   // ════════════════════════════════════════════════════════════════════════════
   if (data.reset) {
-    await task.save({ ...EMPTY_STATE })
+    await task.save(Object.assign({}, EMPTY_STATE))
     const msg = "✅ Session state reset. All task history cleared."
     await task.tools.ui_notify(textPromptNotifyEvent({ type: "text", text: msg }))
     return { type: "text", text: msg }
@@ -264,8 +264,7 @@ async function run(input: Input, task: Task<Tools, SessionState>): Promise<Outpu
 
     await task.tools.ui_notify(progressLogNotifyEvent("Seeding conversation history…"))
 
-    const tasks: ConversationTask[] = BACKFILL_TASKS.map(t => ({
-      ...t,
+    const tasks: ConversationTask[] = BACKFILL_TASKS.map(t => Object.assign({}, t, {
       sessionId: task.sessionId,
       valueUsd:  t.hoursEstimate * (HOURLY_RATES[t.type] ?? 100),
     }))
@@ -275,8 +274,7 @@ async function run(input: Input, task: Task<Tools, SessionState>): Promise<Outpu
     const firstPasses  = tasks.filter(t => t.firstPass).length
     const totalCorrections = tasks.reduce((s, t) => s + t.corrections, 0)
 
-    const seeded: SessionState = {
-      ...EMPTY_STATE,
+    const seeded: SessionState = Object.assign({}, EMPTY_STATE, {
       initialized:      true,
       tasks,
       totalTasks:       tasks.length,
@@ -284,7 +282,7 @@ async function run(input: Input, task: Task<Tools, SessionState>): Promise<Outpu
       totalValueUsd:    totalValue,
       firstPassCount:   firstPasses,
       totalCorrections,
-    }
+    })
 
     await task.save(seeded)
 
@@ -316,15 +314,14 @@ async function run(input: Input, task: Task<Tools, SessionState>): Promise<Outpu
       valueUsd:       lt.hoursEstimate * rate,
     }
 
-    const updated: SessionState = {
-      ...state,
-      tasks:            [...(state.tasks ?? []), newTask],
+    const updated: SessionState = Object.assign({}, state, {
+      tasks:            (state.tasks ?? []).concat([newTask]),
       totalTasks:       (state.totalTasks       ?? 0) + 1,
       totalHours:       (state.totalHours        ?? 0) + lt.hoursEstimate,
       totalValueUsd:    (state.totalValueUsd     ?? 0) + newTask.valueUsd,
       firstPassCount:   (state.firstPassCount    ?? 0) + (lt.firstPass ? 1 : 0),
       totalCorrections: (state.totalCorrections  ?? 0) + (lt.firstPass ? 0 : 1),
-    }
+    })
 
     await task.save(updated)
 
@@ -342,7 +339,7 @@ async function run(input: Input, task: Task<Tools, SessionState>): Promise<Outpu
     const today = new Date().toISOString().slice(0, 10)
 
     const updatedTasks = (state.tasks ?? []).map(t =>
-      t.id === lc.taskId ? { ...t, corrections: t.corrections + 1, firstPass: false } : t
+      t.id === lc.taskId ? Object.assign({}, t, { corrections: t.corrections + 1, firstPass: false }) : t
     )
 
     const correctionRecord: CorrectionRecord = {
@@ -351,13 +348,12 @@ async function run(input: Input, task: Task<Tools, SessionState>): Promise<Outpu
       description: lc.description,
     }
 
-    const updated: SessionState = {
-      ...state,
+    const updated: SessionState = Object.assign({}, state, {
       tasks:            updatedTasks,
-      corrections:      [...(state.corrections ?? []), correctionRecord],
+      corrections:      (state.corrections ?? []).concat([correctionRecord]),
       totalCorrections: (state.totalCorrections ?? 0) + 1,
       firstPassCount:   updatedTasks.filter(t => t.firstPass).length,
-    }
+    })
 
     await task.save(updated)
 
