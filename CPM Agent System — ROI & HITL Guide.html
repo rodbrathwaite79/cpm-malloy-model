@@ -111,32 +111,32 @@
     <h2>The Headline</h2>
     <p class="section-sub">One number that tells the whole story.</p>
     <div class="big-number-wrap">
-      <div class="big-number">2,185×</div>
+      <div class="big-number">4,222×</div>
       <div class="big-label">Return on AI Investment</div>
-      <div class="big-sub">$4,261 of skilled human work delivered for $1.95 in API costs</div>
+      <div class="big-sub">$8,190 of skilled human work delivered for $1.94 in API costs</div>
     </div>
     <div class="analogy">
-      <strong>What does 2,185× mean?</strong> For every $1 spent on the Claude API, the system produced $2,185 worth of work that would otherwise have required a skilled contractor. If you'd spent $100 on Claude fees, you'd get $218,500 worth of work back. These numbers use real market rates for software development, analysis, and technical writing — not estimates pulled from thin air.
+      <strong>What does 4,222× mean?</strong> For every $1 spent on the Claude API, the system produced $4,222 worth of work that would otherwise have required a skilled contractor. If you'd spent $100 on Claude fees, you'd get $422,200 worth of work back. These numbers use real market rates for software development, analysis, and technical writing — not estimates pulled from thin air.
     </div>
     <div class="stat-row">
       <div class="stat-card">
-        <div class="stat-value green">$4,261</div>
+        <div class="stat-value green">$8,190</div>
         <div class="stat-label">Total Value Generated</div>
       </div>
       <div class="stat-card">
-        <div class="stat-value blue">30.6h</div>
+        <div class="stat-value blue">59.25h</div>
         <div class="stat-label">Human Hours Replaced</div>
       </div>
       <div class="stat-card">
-        <div class="stat-value amber">$1.95</div>
+        <div class="stat-value amber">$1.94</div>
         <div class="stat-label">Total API Cost</div>
       </div>
       <div class="stat-card">
-        <div class="stat-value purple">11</div>
+        <div class="stat-value purple">18</div>
         <div class="stat-label">Logged AI Sessions</div>
       </div>
       <div class="stat-card">
-        <div class="stat-value cyan">91%</div>
+        <div class="stat-value cyan">72%</div>
         <div class="stat-label">First-Pass Accuracy</div>
       </div>
     </div>
@@ -221,20 +221,20 @@
 <section id="quality">
   <div class="container">
     <h2>Quality: Does AI Get It Right?</h2>
-    <p class="section-sub">91% first-pass accuracy. Only 1 correction across 11 sessions.</p>
+    <p class="section-sub">72% first-pass accuracy. 13 corrections across 18 sessions.</p>
     <div class="analogy">
-      <strong>What "first-pass" means:</strong> Did the AI produce something usable on the first try, or did it need to be corrected? A 91% first-pass rate means 10 out of 11 sessions produced exactly the right result immediately. That's better than most human contractors.
+      <strong>What "first-pass" means:</strong> Did the AI produce something usable on the first try, or did it need to be corrected? A 72% first-pass rate means 13 of 18 sessions needed at least one correction round. For complex multi-step engineering and documentation tasks, that's a realistic and honest number — and still far faster than doing it manually.
     </div>
     <div class="hitl-grid">
       <div class="hitl-card">
         <div class="hitl-icon">✅</div>
-        <h3>10 of 11 — First Pass</h3>
+        <h3>13 of 18 — First Pass</h3>
         <p>Built correctly on the first attempt. No corrections, no re-runs. Examples: the GitHub Actions workflow, the weekly schedule change across 5 files, the interactive skills HTML — all correct first try.</p>
       </div>
       <div class="hitl-card">
         <div class="hitl-icon">🔧</div>
-        <h3>1 of 11 — One Fix Needed</h3>
-        <p>A camelCase vs. snake_case field name mismatch in the API payload. Caught immediately via live GitHub Action logs. Fixed in under 5 minutes. The next run succeeded.</p>
+        <h3>5 of 18 — Corrections Needed</h3>
+        <p>Complex tasks — Guild agent Babel constraints, doc audits that missed files, GitHub Actions field name mismatches — required iteration. Each correction was caught and fixed in the same session. 13 total correction rounds across those 5 tasks.</p>
       </div>
     </div>
   </div>
@@ -251,18 +251,25 @@
       </thead>
       <tbody>
         <tr>
-          <td><strong>Claude (Anthropic)</strong><br><span style="color:var(--subtle);font-size:12px">Cowork sessions</span></td>
-          <td>11</td><td>30.6h</td>
-          <td style="color:var(--green);font-weight:700">$4,261</td>
-          <td>91%</td>
-          <td style="color:var(--amber)">$1.95</td>
+          <td><strong>Claude · Cowork</strong><br><span style="color:var(--subtle);font-size:12px">provider=claude</span></td>
+          <td>10</td><td>37.25h</td>
+          <td style="color:var(--green);font-weight:700">$5,255</td>
+          <td>60%</td>
+          <td style="color:var(--amber)">$0.00</td>
+        </tr>
+        <tr>
+          <td><strong>Anthropic · Cowork</strong><br><span style="color:var(--subtle);font-size:12px">provider=anthropic</span></td>
+          <td>8</td><td>22.00h</td>
+          <td style="color:var(--green);font-weight:700">$2,935</td>
+          <td>87.5%</td>
+          <td style="color:var(--amber)">$1.94</td>
         </tr>
         <tr style="background:rgba(34,197,94,.03)">
           <td colspan="2"><strong>Total</strong></td>
-          <td style="font-weight:700">30.6h</td>
-          <td style="color:var(--green);font-weight:700;font-size:16px">$4,261</td>
-          <td style="font-weight:700">91%</td>
-          <td style="color:var(--amber);font-weight:700">$1.95</td>
+          <td style="font-weight:700">59.25h</td>
+          <td style="color:var(--green);font-weight:700;font-size:16px">$8,190</td>
+          <td style="font-weight:700">72%</td>
+          <td style="color:var(--amber);font-weight:700">$1.94</td>
         </tr>
       </tbody>
     </table>
@@ -275,7 +282,7 @@
     <h2>HITL — What It Means</h2>
     <p class="section-sub">Human In The Loop — how often humans need to step in.</p>
     <div class="analogy">
-      <strong>HITL (Human In The Loop)</strong> measures how often AI needs a human to correct or re-run its work. High HITL = AI creating extra work. Low HITL = AI is genuinely saving time. At 91% first-pass, this system is firmly in the "genuinely saves time" category.
+      <strong>HITL (Human In The Loop)</strong> measures how often AI needs a human to correct or re-run its work. High HITL = AI creating extra work. Low HITL = AI is genuinely saving time. At 72% first-pass overall, this system is firmly in the "genuinely saves time" category — complex multi-step tasks naturally require more iteration, but the time savings vs. doing it manually remain massive.
     </div>
     <div class="hitl-grid">
       <div class="hitl-card">
@@ -286,7 +293,7 @@
       <div class="hitl-card">
         <div class="hitl-icon">✏️</div>
         <h3>HITL Type 2 — Task Quality</h3>
-        <p>Did Claude produce the right output on the first try for a given Cowork task? Tracked per session. 91% first-pass overall. Only 1 correction in all of 2026 so far — and it was caught and fixed in minutes via the live GitHub Action logs.</p>
+        <p>Did Claude produce the right output on the first try for a given Cowork task? Tracked per session. 72% first-pass overall across 18 logged sessions. 13 corrections tracked in 2026 — mostly on complex Guild agent builds and multi-file doc audits. All corrections were caught and fixed within the same session.</p>
       </div>
     </div>
   </div>
