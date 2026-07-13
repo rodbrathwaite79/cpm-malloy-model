@@ -2,3 +2,4 @@ backups/
 # Guild agent clone directory (local only — has its own .git)
 agent/cpm-report-agent/
 agent/universal-tracker/
+agent/cowork-tracker/
