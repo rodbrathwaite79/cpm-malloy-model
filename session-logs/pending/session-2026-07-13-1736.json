@@ -1,0 +1,28 @@
+{
+  "session_id": "2026-07-13-1736",
+  "session_start": "2026-07-13T17:36:24Z",
+  "session_end": "2026-07-13T17:55:20Z",
+  "provider": "claude",
+  "tool": "cowork",
+  "project": "cpm-agent",
+  "tasks": [
+    {
+      "type": "document",
+      "description": "Audited and updated all 4 documentation files (CLAUDE.md, REFERENCE.md, Project Summary HTML, Architecture Guide HTML) to reflect current system state: corrected rate tables, agent versions, new Guild agents (all 3), Chrome MCP auto-send workflow, and Babel constraint documentation.",
+      "start": "2026-07-13T17:36:24Z",
+      "end": "2026-07-13T17:52:00Z",
+      "duration_minutes": 16,
+      "human_equivalent_hours": 3.0,
+      "value_usd": 240,
+      "first_pass": true,
+      "output": "CLAUDE.md, REFERENCE.md, CPM Agent System — Project Summary (Updated).html, CPM Agent — Architecture & ROI Guide.html"
+    }
+  ],
+  "summary": {
+    "primary_task_type": "document",
+    "total_human_equivalent_hours": 3.0,
+    "total_value_usd": 240,
+    "first_pass": true,
+    "corrections": 0
+  }
+}
