@@ -1,0 +1,28 @@
+{
+  "session_id": "2026-07-13-1830",
+  "session_start": "2026-07-13T18:30:00Z",
+  "session_end": "2026-07-13T19:34:49Z",
+  "provider": "claude",
+  "tool": "cowork",
+  "project": "cpm-agent",
+  "tasks": [
+    {
+      "type": "analysis",
+      "description": "Audited Neon ai_interactions quality data: identified 2 records (id=28, id=63) logged as first_pass:true that required corrections. Built and deployed one-shot fix-quality Vercel endpoint, ran UPDATEs, verified results (first_pass_pct corrected from 82% to 71%, corrections count 6 to 13), removed endpoint.",
+      "start": "2026-07-13T18:30:00Z",
+      "end": "2026-07-13T19:34:49Z",
+      "duration_minutes": 65,
+      "human_equivalent_hours": 0.5,
+      "value_usd": 88,
+      "first_pass": true,
+      "output": null
+    }
+  ],
+  "summary": {
+    "primary_task_type": "analysis",
+    "total_human_equivalent_hours": 0.5,
+    "total_value_usd": 88,
+    "first_pass": true,
+    "corrections": 0
+  }
+}
