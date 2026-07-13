@@ -52,6 +52,23 @@ same task independently — not how long Claude actually took. Examples:
 - Updating a cron expression across 5 files → 0.5 human hours
 - Architecture review and optimization plan → 2–3 human hours
 
+### 2b. Cowork Tracker — Real-Time Log Prompt (Required)
+After **every major task completion**, output a ready-to-paste Guild cowork-tracker
+log entry in this exact format, so the user can send it to Guild chat immediately:
+
+```
+📋 COWORK TRACKER — paste into Guild chat:
+
+Run the Cowork Tracker with input: {"logTask": {"type": "<type>", "description": "<1-2 sentence description>", "hoursEstimate": <N>, "firstPass": <true|false>, "output": "<file or artifact, or null>"}}
+```
+
+Rules:
+- Always output this block at the end of your response for the completed task
+- `type` must be one of: `code`, `document`, `analysis`, `testing`, `research`, `design`
+- `hoursEstimate` = human equivalent hours (same estimate as session log)
+- `firstPass: false` if the user asked for any corrections or redos on this task
+- Skip this block only for trivial responses (answering a question, one-liner fixes)
+
 ### 3. Session End
 When user says "wrap up", "done", "we're done", "log this", or similar:
 
