@@ -1,7 +1,7 @@
 {
   "session_id": "2026-07-13-1446",
   "session_start": "2026-07-13T14:46:28Z",
-  "session_end": null,
+  "session_end": "2026-07-13T16:32:50Z",
   "provider": "claude",
   "tool": "cowork",
   "project": "cpm-agent",
@@ -30,7 +30,7 @@
     },
     {
       "type": "code",
-      "description": "Fixed cowork-tracker.ts: moved 'use agent' inside run(), changed spread to Object.assign, removed guild_get_me / guild_get_daily_llm_usage calls that throw Not Authenticated.",
+      "description": "Fixed cowork-tracker.ts: moved 'use agent' inside run(), changed spread to Object.assign, removed guildTools import and guild_get_me calls.",
       "start": "2026-07-13T15:00:00Z",
       "end": "2026-07-13T15:02:00Z",
       "duration_minutes": 2,
@@ -41,7 +41,7 @@
     },
     {
       "type": "analysis",
-      "description": "Diagnosed universal-tracker v2.0.0 failures: INIT mode crashes on blocked fetch, dashboard mode returns empty due to fetch block + no API key for task.llm.generateText. Source in main repo is v1 using wrong @guild-sdk/agent package.",
+      "description": "Diagnosed universal-tracker v2.0.0 failures: INIT mode crashes on blocked fetch, dashboard returns empty due to fetch block + no API key. Source in main repo was v1 using wrong @guild-sdk/agent package.",
       "start": "2026-07-13T15:00:00Z",
       "end": "2026-07-13T15:03:00Z",
       "duration_minutes": 3,
@@ -52,15 +52,43 @@
     },
     {
       "type": "code",
-      "description": "Full rewrite of universal-tracker.ts from @guild-sdk/agent (v1) to @guildai/agents-sdk (v3): new agent() export pattern, 'use agent' inside run(), Object.assign tools, try-catch on all fetch calls, static fallbacks when fetch fails, no task.llm.generateText() calls.",
+      "description": "Full rewrite of universal-tracker.ts v3: @guild-sdk/agent -> @guildai/agents-sdk, agent() export, 'use agent' inside run(), Object.assign tools, try-catch on all fetch calls, static fallbacks, no task.llm.generateText() calls.",
       "start": "2026-07-13T15:03:00Z",
-      "end": "2026-07-13T15:05:52Z",
-      "duration_minutes": 3,
+      "end": "2026-07-13T15:10:00Z",
+      "duration_minutes": 7,
       "human_equivalent_hours": 4.0,
       "value_usd": 600,
       "first_pass": true,
       "output": "agent/universal-tracker.ts"
+    },
+    {
+      "type": "testing",
+      "description": "Deployed universal-tracker v2.0.1 to Guild, scaffolded deploy directory, resolved clone vs init confusion, verified agent returns full help menu via workspace orchestrator.",
+      "start": "2026-07-13T15:10:00Z",
+      "end": "2026-07-13T15:30:00Z",
+      "duration_minutes": 20,
+      "human_equivalent_hours": 0.5,
+      "value_usd": 50,
+      "first_pass": false,
+      "output": null
+    },
+    {
+      "type": "code",
+      "description": "Fixed cowork-tracker.ts Babel SpreadElement errors: replaced all 7 spread operators inside run() with Object.assign/concat. Deployed v1.0.2, added to workspace, verified dashboard renders correctly.",
+      "start": "2026-07-13T15:30:00Z",
+      "end": "2026-07-13T16:32:50Z",
+      "duration_minutes": 62,
+      "human_equivalent_hours": 2.0,
+      "value_usd": 300,
+      "first_pass": false,
+      "output": "agent/cowork-tracker.ts"
     }
   ],
-  "summary": null
+  "summary": {
+    "primary_task_type": "code",
+    "total_human_equivalent_hours": 9.5,
+    "total_value_usd": 1406,
+    "first_pass": false,
+    "corrections": 2
+  }
 }
