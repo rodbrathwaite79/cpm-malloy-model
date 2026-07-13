@@ -195,7 +195,7 @@
       <div class="arch-diagram">
         <div class="flow-label">Data Flow: Trigger → Collect → Synthesize → Deliver</div>
         <div class="flow-row layer-1">
-          <div class="flow-box" onclick="openSkill('vercel-serverless')">Vercel Cron (8am EST)</div>
+          <div class="flow-box" onclick="openSkill('vercel-serverless')">Vercel Cron (Mon 8am ET)</div>
           <div class="flow-arrow">→</div>
           <div class="flow-box" onclick="openSkill('brave-search')">Brave Search</div>
           <div class="flow-arrow">→</div>
@@ -211,7 +211,7 @@
         <div class="flow-sep"></div>
         <div class="flow-label">Parallel Backup: Mac launchd → DuckDB → Same delivery</div>
         <div class="flow-row layer-2">
-          <div class="flow-box" onclick="openSkill('launchd-schedule')">launchd (8am local)</div>
+          <div class="flow-box" onclick="openSkill('launchd-schedule')">launchd (Mon 8am local)</div>
           <div class="flow-arrow">→</div>
           <div class="flow-box" onclick="openSkill('duckdb-parquet')">DuckDB / Parquet</div>
           <div class="flow-arrow">→</div>
@@ -225,13 +225,13 @@
         <div class="flow-sep"></div>
         <div class="flow-label">ROI Tracking: Any AI session → Log → Query → Analyze</div>
         <div class="flow-row layer-3">
-          <div class="flow-box" onclick="openSkill('git-hook-auto-logger')">git commit hook</div>
+          <div class="flow-box" onclick="openSkill('git-hook-auto-logger')">Claude writes session JSON</div>
+          <div class="flow-arrow">→</div>
+          <div class="flow-box" onclick="openSkill('git-hook-auto-logger')">git push → GitHub Actions</div>
           <div class="flow-arrow">→</div>
           <div class="flow-box" onclick="openSkill('api-log-interaction')">POST /api/log-interaction</div>
           <div class="flow-arrow">→</div>
           <div class="flow-box" onclick="openSkill('neon-postgres')">Neon (ai_interactions)</div>
-          <div class="flow-arrow">→</div>
-          <div class="flow-box" onclick="openSkill('malloyyo-neon-backend')">Malloyyo MCP</div>
           <div class="flow-arrow">→</div>
           <div class="flow-box" onclick="openSkill('malloy-semantic-model')">Malloy Queries</div>
         </div>
@@ -472,7 +472,7 @@
 
         <div class="skill-card" data-skill="launchd-schedule" data-category="ops" onclick="openSkill('launchd-schedule')">
           <div class="skill-card-name"><span style="color:#f59e0b">⚙</span> launchd-schedule</div>
-          <div class="skill-card-desc">Create a macOS launchd plist to run daily-report.mjs at 8am as a hot-standby backup to the Vercel cron. Covers Node path detection, log routing, install/unload, and common failure modes.</div>
+          <div class="skill-card-desc">Create a macOS launchd plist to run daily-report.mjs every Monday at 8am as a hot-standby backup to the Vercel cron. Covers Node path detection, log routing, install/unload, and common failure modes.</div>
           <div class="skill-card-footer">
             <div class="skill-tags"><span class="tag">launchd</span><span class="tag">macOS</span></div>
             <span class="expand-hint">View details →</span>
@@ -591,7 +591,7 @@ const rows = await sql\`
       "Export a default async function <code>handler(req, res)</code>",
       "Add CORS headers and OPTIONS handler at the top of every endpoint",
       "Protect write endpoints with <code>Authorization: Bearer &lt;SECRET&gt;</code> header check",
-      "Configure crons in <code>vercel.json</code> with <code>0 13 * * *</code> for 8am EST",
+      "Configure crons in <code>vercel.json</code> with <code>0 13 * * 1</code> for Monday 8am ET (UTC-5)",
       "Set <code>maxDuration: 120</code> for the cpm-report cron — default 10s is too short for web scraping"
     ],
     uses: ["neon-postgres", "resend-email", "brave-search", "github-file-update", "cpm-rule-based-synthesis", "interactive-dashboard-html"],
@@ -880,7 +880,7 @@ await ctx.setState(state)`
     title: "launchd-schedule",
     file: "skills/launchd-schedule/SKILL.md",
     category: "Automation & Ops",
-    what: "Creates a macOS launchd plist that runs daily-report.mjs at 8am as a hot-standby backup to the Vercel cron. Covers the exact plist template, Node path detection (the most common failure), install/unload commands, and log routing.",
+    what: "Creates a macOS launchd plist that runs daily-report.mjs every Monday at 8am as a hot-standby backup to the Vercel cron. Covers the exact plist template, Node path detection (the most common failure), install/unload commands, and log routing.",
     when: "Use when setting up the Mac backup runner on a new machine, or when the launchd schedule stops firing (wrong Node path after nvm upgrade).",
     how: [
       "Find the exact Node binary path: <code>which node</code> → use this verbatim in ProgramArguments[0]",

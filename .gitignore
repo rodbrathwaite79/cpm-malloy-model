@@ -3,3 +3,11 @@ backups/
 agent/cpm-report-agent/
 agent/universal-tracker/
 agent/cowork-tracker/
+
+# macOS metadata
+.DS_Store
+**/.DS_Store
+
+# Vercel local files (contain OIDC tokens)
+.env.local
+.vercel/

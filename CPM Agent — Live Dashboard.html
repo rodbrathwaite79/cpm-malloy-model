@@ -364,6 +364,7 @@
   Value is the estimated dollar amount of work an AI tool completed — based on <strong>how many hours it saved</strong> multiplied by the <strong>market hourly rate</strong> for that type of work. It answers: <em>"What would a skilled human contractor have charged for this?"</em>
   <div class="rate-grid">
     <div class="rate-chip"><div class="rt">$175 / hr</div><div class="rn">Analysis</div></div>
+    <div class="rate-chip"><div class="rt">$175 / hr</div><div class="rn">Design</div></div>
     <div class="rate-chip"><div class="rt">$150 / hr</div><div class="rn">Code</div></div>
     <div class="rate-chip"><div class="rt">$125 / hr</div><div class="rn">Research</div></div>
     <div class="rate-chip"><div class="rt">$100 / hr</div><div class="rn">Testing</div></div>
@@ -519,7 +520,7 @@
   }
 
   // ── Hourly rates by task type ─────────────────────────────────────────────
-  const RATES = { analysis: 175, code: 150, research: 125, testing: 100, document: 80 }
+  const RATES = { analysis: 175, design: 175, code: 150, research: 125, testing: 100, document: 80 }
 
   function hoursLabel(hours) {
     const h = parseFloat(hours)
