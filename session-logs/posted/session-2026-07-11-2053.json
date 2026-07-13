@@ -1,7 +1,7 @@
 {
   "session_id": "2026-07-11-2053",
   "session_start": "2026-07-11T20:53:07Z",
-  "session_end": "2026-07-11T21:17:23Z",
+  "session_end": "2026-07-13T10:45:18Z",
   "provider": "claude",
   "tool": "cowork",
   "project": "cpm-agent",
@@ -16,12 +16,34 @@
       "value_usd": 75,
       "first_pass": true,
       "output": "cpm-vercel/lib/report-html.js, cpm-vercel/api/cpm-report.js, agent/daily-report.mjs"
+    },
+    {
+      "type": "analysis",
+      "description": "Reviewed all documentation files (Architecture Guide, Project Summary, REFERENCE.md, ARCHITECTURE-REVIEW.md, skills) against actual codebase to identify inaccuracies. Confirmed Guild agent is a metrics layer called by Pipeline 1, not an independent report runner. Confirmed no Guild time trigger exists.",
+      "start": "2026-07-13T09:30:00Z",
+      "end": "2026-07-13T10:00:00Z",
+      "duration_minutes": 30,
+      "human_equivalent_hours": 1.5,
+      "value_usd": 262,
+      "first_pass": true,
+      "output": null
+    },
+    {
+      "type": "document",
+      "description": "Updated Architecture & ROI Guide (fixed Pipeline 3 diagram, Guild component card, trigger governance section), Project Summary (clarified Guild automation claim), ARCHITECTURE-REVIEW.md (marked 6 of 7 items complete, rewrote as current-state doc), and generate-dashboard.mjs (added local preview tool notice).",
+      "start": "2026-07-13T10:00:00Z",
+      "end": "2026-07-13T10:45:18Z",
+      "duration_minutes": 45,
+      "human_equivalent_hours": 2.0,
+      "value_usd": 250,
+      "first_pass": true,
+      "output": "CPM Agent — Architecture & ROI Guide.html, CPM Agent System — Project Summary (Updated).html, ARCHITECTURE-REVIEW.md, cpm-vercel/scripts/generate-dashboard.mjs"
     }
   ],
   "summary": {
-    "primary_task_type": "code",
-    "total_human_equivalent_hours": 0.5,
-    "total_value_usd": 75,
+    "primary_task_type": "document",
+    "total_human_equivalent_hours": 4.0,
+    "total_value_usd": 587,
     "first_pass": true,
     "corrections": 0
   }
