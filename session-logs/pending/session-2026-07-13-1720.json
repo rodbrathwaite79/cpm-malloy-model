@@ -1,0 +1,28 @@
+{
+  "session_id": "2026-07-13-1720",
+  "session_start": "2026-07-13T17:20:00Z",
+  "session_end": "2026-07-13T17:22:17Z",
+  "provider": "claude",
+  "tool": "cowork",
+  "project": "cpm-agent",
+  "tasks": [
+    {
+      "type": "code",
+      "description": "Built and verified Chrome MCP auto-send flow: logTask messages are now automatically submitted to Guild cowork-tracker on user's behalf without any manual copy-paste required.",
+      "start": "2026-07-13T17:20:00Z",
+      "end": "2026-07-13T17:22:17Z",
+      "duration_minutes": 2,
+      "human_equivalent_hours": 0.5,
+      "value_usd": 75,
+      "first_pass": true,
+      "output": null
+    }
+  ],
+  "summary": {
+    "primary_task_type": "code",
+    "total_human_equivalent_hours": 0.5,
+    "total_value_usd": 75,
+    "first_pass": true,
+    "corrections": 0
+  }
+}
