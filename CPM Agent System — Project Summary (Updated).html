@@ -446,7 +446,7 @@
         <ul>
           <li><strong>git push</strong> — after a Cowork session, to trigger the session logger</li>
           <li><strong>Vercel redeploy</strong> — needed after code changes to the report (rare)</li>
-          <li><strong>Token rotation</strong> — GitHub token should be rotated periodically for security</li>
+          <li><strong>Token rotation</strong> — GitHub token should be rotated periodically; last rotated July 2026</li>
           <li><strong>Open the dashboard</strong> — it doesn't email you; you open it when you want to see metrics</li>
         </ul>
       </div>
@@ -464,7 +464,7 @@
         <div class="next-icon">🔑</div>
         <div class="next-body">
           <h3>Rotate the GitHub Token</h3>
-          <p>The token <code style="background:var(--surface);padding:2px 6px;border-radius:4px;font-size:12px">g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</code> was exposed in a conversation. Go to <strong>github.com/settings/tokens</strong> → <em>Tokens (classic)</em> → <em>Generate new token (classic)</em> with <em>repo + workflow</em> scope. Then update it in: (1) Vercel dashboard → cpm-vercel → Settings → Environment Variables → <code>GITHUB_TOKEN</code>, and (2) your local <code>~/Documents/cpm-agent/agent/cpm-report-agent/.env</code>.</p>
+          <p style="color:var(--green)">✓ Completed July 2026. Rotate again periodically at <strong>github.com/settings/tokens</strong> — update in Vercel env vars and local <code>.env</code> when you do.</p>
         </div>
       </div>
     </div>

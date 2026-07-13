@@ -520,7 +520,7 @@ The GitHub Personal Access Token needs **both**:
 - `repo` — for pushing files and CSV backup
 - `workflow` — for pushing to `.github/workflows/`
 
-> **⚠️ Token rotation needed:** Token `g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` was exposed in a conversation. Generate a new one at github.com/settings/tokens and update it in Vercel env vars and local `.env`.
+> **Token rotation:** Completed July 2026. Rotate periodically at github.com/settings/tokens — update in Vercel env vars and local `.env` when you do.
 
 ---
 
