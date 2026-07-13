@@ -458,20 +458,13 @@
 <section id="nextsteps">
   <div class="container">
     <h2>Remaining To-Do</h2>
-    <p class="section-sub">Two small items before everything is 100% complete.</p>
+    <p class="section-sub">One item remaining before everything is 100% complete.</p>
     <div class="next-list">
-      <div class="next-item">
-        <div class="next-icon">🚀</div>
-        <div class="next-body">
-          <h3>Redeploy to Vercel</h3>
-          <p>Run <code style="background:var(--surface);padding:2px 6px;border-radius:4px;font-size:12px">cd ~/Documents/cpm-agent/malloy-model-git && vercel --prod</code> from your terminal. This publishes the weekly Monday cron schedule to production. Without this, Vercel still runs the old daily schedule.</p>
-        </div>
-      </div>
       <div class="next-item">
         <div class="next-icon">🔑</div>
         <div class="next-body">
           <h3>Rotate the GitHub Token</h3>
-          <p>The token <code style="background:var(--surface);padding:2px 6px;border-radius:4px;font-size:12px">g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</code> was exposed in a conversation. Go to <strong>github.com/settings/tokens</strong>, generate a new one with <em>repo + workflow</em> scope, and update it in Vercel's environment variables.</p>
+          <p>The token <code style="background:var(--surface);padding:2px 6px;border-radius:4px;font-size:12px">g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</code> was exposed in a conversation. Go to <strong>github.com/settings/tokens</strong> → <em>Tokens (classic)</em> → <em>Generate new token (classic)</em> with <em>repo + workflow</em> scope. Then update it in: (1) Vercel dashboard → cpm-vercel → Settings → Environment Variables → <code>GITHUB_TOKEN</code>, and (2) your local <code>~/Documents/cpm-agent/agent/cpm-report-agent/.env</code>.</p>
         </div>
       </div>
     </div>
