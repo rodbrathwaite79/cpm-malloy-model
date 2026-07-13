@@ -93,6 +93,9 @@ malloy-model-git/
 │   └── workflows/
 │       └── log-sessions.yml        ← GitHub Action: auto-logs sessions on push
 ├── agent/
+│   ├── agent.ts                    ← Source for cpm-report-agent (mirrored to cpm-report-agent/)
+│   ├── cowork-tracker.ts           ← Source for cowork-tracker Guild agent
+│   ├── universal-tracker.ts        ← Source for universal-tracker Guild agent
 │   ├── daily-report.mjs            ← Mac backup runner (Monday 8am launchd)
 │   └── log-ai.mjs                  ← CLI tool to manually log a session
 ├── cpm-vercel/                     ← Vercel serverless project
@@ -117,10 +120,12 @@ malloy-model-git/
 ├── index.malloy                    ← Malloy model: CPM benchmarks
 └── ai_tracker.malloy               ← Malloy model: AI interaction tracker
 
-The `agent/cpm-report-agent/` directory is intentionally gitignored — it has its own `.git` managed by Guild. Key files inside it:
-- `agent.ts` — the published agent (mirrors `agent/agent.ts`)
-- `guild.json` — agent ID + name (agent_id: `019f04fb-e2e0-726e-0000-4fded67253ca`)
-- `package.json` — dependencies: `@guildai/agents-sdk`, `duckdb` only
+Three agent deploy directories are gitignored — each has its own `.git` managed by Guild:
+- `agent/cpm-report-agent/` — source is `agent/agent.ts`; agent_id `019f04fb-e2e0-726e-0000-4fded67253ca`
+- `agent/universal-tracker/` — source is `agent/universal-tracker.ts`; v2.0.1
+- `agent/cowork-tracker/cowork-tracker/` — source is `agent/cowork-tracker.ts`; v1.0.3 (nested dir due to init path)
+
+To deploy any agent: copy the `.ts` source into its deploy directory, then run `guild agent save --publish --wait` from that directory.
 ```
 
 ---
@@ -193,10 +198,17 @@ FORCE_UPDATE=true node ~/Documents/cpm-agent/agent/cpm-report-agent/daily-report
 
 ### How it works
 1. Session start → Claude creates `session-logs/pending/session-YYYY-MM-DD-HHmm.json`
-2. After each task → Claude updates the JSON with description, hours, value
-3. Session end → Say "log this." Claude commits the file
+2. After each task → Claude auto-submits a `logTask` to the **cowork-tracker** Guild agent via Chrome MCP (no copy-paste needed), AND updates the session JSON
+3. Session end → Say "wrap up" or "log this." Claude finalizes the JSON and commits the file
 4. `git push` from any machine → GitHub Action fires
 5. Action POSTs to `/api/log-interaction` → 200 OK → file moves to `posted/`
+
+**Real-time cowork-tracker logging (automatic after each task):**  
+Claude sends the following directly to Guild chat on your behalf using Chrome MCP:
+```
+Run the Cowork Tracker with input: {"logTask": {"type": "<type>", "description": "...", "hoursEstimate": <N>, "firstPass": <true|false>, "output": "..."}}
+```
+This keeps the Guild cowork-tracker dashboard live and up-to-date during the session. No manual pasting required.
 
 ### Session JSON schema
 ```json
@@ -233,16 +245,27 @@ FORCE_UPDATE=true node ~/Documents/cpm-agent/agent/cpm-report-agent/daily-report
 |-----------|---------|
 | code | $150 |
 | analysis | $175 |
+| design | $175 |
 | research | $125 |
-| document | $125 |
+| testing | $100 |
+| document | $80 |
 
 ---
 
-## Guild Agent (`cpm-report-agent`)
+## Guild Agents
 
-> **Plain English:** Guild is where the CPM report agent lives and runs. Think of it as a cloud runtime that hosts your TypeScript agent, tracks every run, and manages LLM token consumption. You publish new versions from the CLI; Guild handles execution, state, and observability.
+> **Plain English:** Guild is where your TypeScript agents live and run. It's a cloud runtime that hosts agents, tracks every session with a full audit trail, and manages LLM token consumption. You publish new versions from the CLI; Guild handles execution, state, and observability.
 
-Current published version: **1.0.12**  
+Three agents are deployed in the `rod-workspace`:
+
+| Agent | Version | Purpose | Deploy directory |
+|-------|---------|---------|-----------------|
+| `cpm-report-agent` | **1.0.15** | CPM pipeline metrics, AI analysis of report data | `agent/cpm-report-agent/` (gitignored) |
+| `cowork-tracker` | **1.0.3** | Real-time ROI dashboard for the current Cowork session | `agent/cowork-tracker/cowork-tracker/` (gitignored) |
+| `universal-tracker` | **2.0.1** | Cross-provider AI ROI tracker backed by Neon | `agent/universal-tracker/` (gitignored) |
+
+### `cpm-report-agent`
+
 Agent ID: `019f04fb-e2e0-726e-0000-4fded67253ca`
 
 ---
@@ -337,12 +360,13 @@ Failed drafts remain in history with `DRAFT` status — useful for diagnosing bu
 
 ### Self-Logging
 
-Both Guild agents automatically POST to `/api/log-interaction` on success, so their runs appear in the ROI dashboard alongside Cowork sessions.
+Guild agents automatically POST to `/api/log-interaction` on success, so their runs appear in the ROI dashboard alongside Cowork sessions.
 
 | Agent | When logged | Task type | Hours estimate |
 |-------|------------|-----------|----------------|
-| `agent.ts` | Every production run (MODE A/D/E) | analysis | 0.25h |
-| `universal-tracker.ts` | MODE A INIT only | code | 0.1h |
+| `cpm-report-agent` | Every production run (MODE A/D/E) | analysis | 0.25h |
+| `universal-tracker` | MODE A INIT only | code | 0.1h |
+| `cowork-tracker` | Not self-logged — it IS the logging mechanism | — | — |
 
 MODE B (LOG) is excluded — it IS the log mechanism; self-logging it would be circular.
 
@@ -404,7 +428,7 @@ Sessions have three states: `Active` (running or waiting for input), `Completed`
 
 #### 3. Trigger Management (scheduled + webhook runs)
 
-The CPM report agent runs via a Guild **time trigger** (weekly Monday 8am). Triggers are the scheduled-automation layer.
+The `cpm-report-agent` currently runs on **manual invocation** — send a message to the rod-workspace chat (e.g., via the workspace orchestrator) to trigger it. No Guild time trigger is currently configured. The weekly CPM report itself runs via the Vercel cron (`0 13 * * 1`), which is separate from Guild. If you want to add a Guild trigger, the platform fully supports it.
 
 ```bash
 # List all triggers
@@ -514,7 +538,7 @@ The GitHub Personal Access Token needs **both**:
 | Neon connection error | DATABASE_URL missing/expired | Re-copy from Neon console |
 | Mislabeled `provider=cursor` entries with `session_id=git-*` | Old `setup-auto-logging.sh` git hook hardcoded `provider:"cursor"` on every git commit | Run `node agent/cleanup-cursor-entries.mjs` (requires DATABASE_URL in env) |
 | launchd not firing | Wrong Node path in plist | Check plist `ProgramArguments` |
-| `guild agent save --publish` → `NotImplemented: SpreadElement` | Babel compiler hit `{ ...importedVar }` or `[...arr]` inside `"use agent"` function | Replace all spreads with `Object.assign()` and `.concat()` — check `agent.ts` for any `...` |
+| `guild agent save --publish` → `NotImplemented: SpreadElement` | Babel compiler hit **any** `{ ...x }` or `[...arr]` inside `"use agent"` function — applies to ALL spreads, not just imported variables | Replace all spreads with `Object.assign()` and `.concat()` — check `agent.ts` for any `...` inside `run()` |
 | Build error moves line number after adding comments | Babel compiles the generated JS, not TypeScript source — line numbers track JS output | Use column position (col 16 = start of spread) to locate the failing expression |
 | Guild session shows `Failed` | Agent threw unhandled exception or Babel compile error at runtime | `guild session events <session-id>` for full trace |
 | Self-log not appearing in ROI dashboard after Guild run | `LOG_API_KEY` or `LOG_API_URL` not set in Guild agent environment | Guild dashboard → agent → Settings → Environment — add both vars |

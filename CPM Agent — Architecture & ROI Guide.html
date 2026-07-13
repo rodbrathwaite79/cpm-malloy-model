@@ -197,7 +197,7 @@
       <div class="comp-card">
         <div class="comp-icon">⚙️</div>
         <h3>Guild <span class="pill pill-purple">AGENT RUNTIME</span></h3>
-        <p>Guild hosts the <code style="font-size:11px;background:rgba(167,139,250,.1);color:var(--purple);padding:2px 6px;border-radius:4px">cpm-report-agent</code> TypeScript agent — an ROI metrics tracking agent that layers on top of the CPM report. After Pipeline 1 runs and fetches data, it can pass that data to the Guild agent, which generates AI analysis, tracks token costs, and logs run outcomes. Guild handles execution, persistent state, and full session-level audit logs for every invocation.</p>
+        <p>Guild hosts three TypeScript agents in the <code style="font-size:11px;background:rgba(167,139,250,.1);color:var(--purple);padding:2px 6px;border-radius:4px">rod-workspace</code>: <strong>cpm-report-agent v1.0.15</strong> (ROI metrics for the CPM pipeline), <strong>cowork-tracker v1.0.3</strong> (real-time session ROI dashboard), and <strong>universal-tracker v2.0.1</strong> (cross-provider AI interaction tracker backed by Neon). Guild handles execution, persistent state, and full session-level audit logs for every invocation.</p>
         <div class="plain">Like a scorekeeper attached to the pipeline — it doesn't run the race, but it records exactly what happened, how much it cost, and whether the result was any good.</div>
       </div>
 
@@ -246,23 +246,23 @@
 └─────────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────┐
-│              GUILD AGENT: ROI METRICS LAYER (manual trigger)        │
+│              GUILD AGENTS (3 agents, rod-workspace)                 │
 │                                                                     │
-│  Pipeline 1 fetches data, then optionally calls the Guild agent:    │
+│  cpm-report-agent v1.0.15 — ROI metrics layer for Pipeline 1       │
+│    { rows, webFindings, outcome, dataPoints }  ──→  cpm-report-agent│
+│       ├──→  Guild state (persistent metrics)                        │
+│       ├──→  POST /api/log-interaction (self-log)                    │
+│       └──→  Guild session log (audit trail)                         │
 │                                                                     │
-│  { rows, webFindings, outcome, dataPoints }  ──→  Guild agent       │
-│                                                     │               │
-│                                                     ▼               │
-│                                          Generates AI analysis      │
-│                                          Tracks token cost          │
-│                                          Logs run outcome           │
-│                                                     │               │
-│                                                     ├──→  Guild state (persistent metrics)  │
-│                                                     ├──→  POST /api/log-interaction         │
-│                                                     └──→  Guild session log (audit trail)   │
+│  cowork-tracker v1.0.3 — Real-time Cowork session ROI dashboard     │
+│    Auto-updated via Chrome MCP after each Claude task (no paste)    │
+│    { logTask: { type, description, hoursEstimate, ... } }           │
 │                                                                     │
-│  Triggered by: manual invocation (no time trigger configured)       │
-│  Published:    v1.0.12 · rod.brathwaite/rod-workspace               │
+│  universal-tracker v2.0.1 — Cross-provider AI interaction tracker   │
+│    Logs to Neon ai_interactions via /api/log-interaction            │
+│    Supports: anthropic, openai, cursor, github, google, mistral     │
+│                                                                     │
+│  All agents: manual invocation — no Guild time trigger configured   │
 └─────────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -406,7 +406,7 @@
     <p style="color:var(--subtle);font-size:14px;margin:8px 0 16px">The agent uses Guild's <strong>AutomaticallyManagedStateAgent</strong> pattern. You write a plain <code style="background:rgba(99,102,241,.1);color:var(--indigo);padding:1px 6px;border-radius:4px">async run()</code> function, and Guild's Babel compiler secretly transforms it into a <em>resumable state machine</em> — code that can pause mid-run, save its state, and pick up exactly where it left off after a tool call completes or the user responds.</p>
 
     <div class="warn-box">
-      <strong>⚠️ Critical maintenance rule:</strong> The Babel compiler cannot handle <code style="background:rgba(245,158,11,.1);color:var(--amber);padding:1px 6px;border-radius:4px">{ ...spreadSyntax }</code> or <code style="background:rgba(245,158,11,.1);color:var(--amber);padding:1px 6px;border-radius:4px">[...arrays]</code> when the source is an imported variable. Any spread using an import or module-level constant inside the <code>run()</code> body will cause the build to fail with a <em>NotImplemented: SpreadElement</em> error. Always use <code>Object.assign()</code> and <code>.concat()</code> instead.
+      <strong>⚠️ Critical maintenance rule:</strong> The Babel compiler cannot handle <strong>any</strong> spread syntax — <code style="background:rgba(245,158,11,.1);color:var(--amber);padding:1px 6px;border-radius:4px">{ ...anything }</code> or <code style="background:rgba(245,158,11,.1);color:var(--amber);padding:1px 6px;border-radius:4px">[...anything]</code> — inside the <code>run()</code> body. This applies to all spreads: imported variables, module-level constants, and even local variables. Any spread inside <code>run()</code> causes a build failure with a <em>NotImplemented: SpreadElement</em> error. Always use <code>Object.assign()</code> and <code>.concat()</code> instead. Regular TypeScript outside <code>run()</code> is unaffected.
     </div>
 
     <br>
@@ -414,8 +414,8 @@
     <table class="gov-table">
       <thead><tr><th>Pattern to Avoid</th><th>Use Instead</th><th>Why</th></tr></thead>
       <tbody>
-        <tr><td><code>{ ...importedVar, key: val }</code></td><td><code>Object.assign({}, importedVar, { key: val })</code></td><td>Spread on non-local label fails at build time</td></tr>
-        <tr><td><code>[...arr, newItem]</code></td><td><code>arr.concat([newItem])</code></td><td>Same SpreadElement restriction</td></tr>
+        <tr><td><code>{ ...anyVar, key: val }</code></td><td><code>Object.assign({}, anyVar, { key: val })</code></td><td>ALL object spreads fail inside run() — imported, module-level, or local</td></tr>
+        <tr><td><code>[...arr, newItem]</code></td><td><code>arr.concat([newItem])</code></td><td>ALL array spreads fail inside run() — same SpreadElement restriction</td></tr>
         <tr><td><code>Promise.all([a(), b()])</code></td><td><code>const a = await a(); const b = await b();</code></td><td>Promises can't survive state serialization</td></tr>
         <tr><td><code>import { fn } from './helpers'</code> (if fn crosses an await)</td><td>Keep all awaited logic in agent.ts</td><td>External module frames are lost on resume</td></tr>
         <tr><td><code>"use agent"</code> at file top level</td><td><code>"use agent"</code> as first line inside <code>run()</code></td><td>Module-level directive compiles the entire file</td></tr>
@@ -444,12 +444,12 @@
         <h3>🔖 Version History</h3>
         <p>Every <code>guild agent save</code> creates a version. Published versions have a version number; failed builds stay as DRAFT. The history tells you exactly what code was live at any point in time.</p>
         <p style="margin-top:8px"><code>guild agent versions</code> — full list<br>
-        Currently live: <strong style="color:var(--green)">v1.0.12 · PUBLISHED</strong></p>
+        Currently live: <strong style="color:var(--green)">v1.0.15 · PUBLISHED</strong></p>
       </div>
       <div class="gov-card">
         <h3>⏰ Trigger Management</h3>
-        <p>No time trigger is currently configured — the Guild agent is invoked manually or called by Pipeline 1. If you ever want to add a schedule, Guild supports time triggers that can fire the agent on a cron expression without touching the agent code.</p>
-        <p style="margin-top:8px"><code>guild trigger list</code> — all triggers (currently none)<br>
+        <p>No Guild time trigger is currently configured — all three agents are invoked manually (via workspace chat or Chrome MCP). The weekly CPM report runs on a <strong>Vercel cron</strong> (<code>0 13 * * 1</code>), not a Guild trigger. Guild triggers can be added at any time without changing agent code.</p>
+        <p style="margin-top:8px"><code>guild trigger list</code> — all triggers<br>
         <code>guild trigger sessions &lt;id&gt;</code> — scheduled run history<br>
         <code>guild trigger deactivate &lt;id&gt;</code> — pause without deleting</p>
       </div>
@@ -512,7 +512,7 @@
         <tr>
           <td><strong>Document</strong></td>
           <td>Writing guides, documentation, HTML files, reports</td>
-          <td style="color:var(--amber)">$125/hr</td>
+          <td style="color:var(--amber)">$80/hr</td>
           <td>Writing the Skills Reference HTML guide</td>
         </tr>
       </tbody>

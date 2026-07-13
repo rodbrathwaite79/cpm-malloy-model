@@ -43,8 +43,10 @@ Append a task record to the `tasks` array:
 |------------|---------|
 | code       | $150    |
 | analysis   | $175    |
-| document   | $125    |
-| research   | $100    |
+| design     | $175    |
+| research   | $125    |
+| testing    | $100    |
+| document   | $80     |
 
 **Human equivalent hours**: estimate how long a skilled human would take to do the
 same task independently — not how long Claude actually took. Examples:
