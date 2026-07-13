@@ -1,4 +1,3 @@
-"use agent"
 /**
  * cowork-tracker — Guild.ai Agent
  *
@@ -206,7 +205,7 @@ const BACKFILL_TASKS: Omit<ConversationTask, "sessionId" | "valueUsd">[] = [
 ]
 
 // ── Tools ──────────────────────────────────────────────────────────────────────
-const tools = { ...userInterfaceTools, ...guildTools }
+const tools = Object.assign({}, userInterfaceTools, guildTools)
 type Tools = typeof tools
 
 // ── Input / Output ─────────────────────────────────────────────────────────────
@@ -224,6 +223,7 @@ type Output = z.infer<typeof outputSchema>
 
 // ── Main ───────────────────────────────────────────────────────────────────────
 async function run(input: Input, task: Task<Tools, SessionState>): Promise<Output> {
+  "use agent"
 
   let data: {
     init?:          boolean
@@ -371,19 +371,9 @@ async function run(input: Input, task: Task<Tools, SessionState>): Promise<Outpu
   // DASHBOARD (default)
   // ════════════════════════════════════════════════════════════════════════════
 
-  // Fetch today's token usage from Guild
-  await task.tools.ui_notify(progressLogNotifyEvent("Fetching LLM usage from Guild…"))
-  let todayIn = 0, todayOut = 0, todayCost = 0
-  try {
-    const today = new Date().toISOString().slice(0, 10)
-    const me    = await task.tools.guild_get_me({})
-    const usage = await task.tools.guild_get_daily_llm_usage({ account_id: me.id, start_date: today, end_date: today })
-    if (usage.items?.length > 0) {
-      todayIn  = usage.items[0].input_tokens  ?? 0
-      todayOut = usage.items[0].output_tokens ?? 0
-      todayCost = todayIn * 3 / 1_000_000 + todayOut * 15 / 1_000_000
-    }
-  } catch { /* non-fatal */ }
+  // LLM usage: guild_get_me / guild_get_daily_llm_usage throw "Not authenticated"
+  // in the Guild workspace runtime — skip and use zeros (non-fatal)
+  const todayIn = 0, todayOut = 0, todayCost = 0
 
   const msg = buildDashboard(state, { todayIn, todayOut, todayCost }, "")
   await task.tools.ui_notify(textPromptNotifyEvent({ type: "text", text: msg }))

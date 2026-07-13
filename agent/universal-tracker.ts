@@ -1,5 +1,5 @@
 /**
- * universal-tracker.ts — Guild agent
+ * universal-tracker.ts — Guild agent v3
  *
  * Tracks ROI and quality of ALL AI interactions across every provider
  * (Claude, ChatGPT, Cursor, Gemini, Copilot, etc.) for a given project.
@@ -24,13 +24,20 @@
  *   INTERACTIONS_API_URL  https://cpm-vercel.vercel.app/api/interactions
  *   LOG_API_KEY           matches Vercel LOG_API_KEY
  *
- * Include this file in any project:
- *   - Copy to <project>/agent/universal-tracker.ts
- *   - Update BACKFILL_TASKS for your project history
- *   - Deploy to Guild
+ * SDK: @guildai/agents-sdk (new API — "use agent" inside run(), agent() export)
+ * Babel constraints: no spread on non-local imports, Object.assign() for merges
+ *
+ * DEPLOY: cd <this-agent-dir> && guild agent save --publish --wait
  */
 
-import { task } from "@guild-sdk/agent"
+import {
+  agent,
+  userInterfaceTools,
+  textPromptNotifyEvent,
+  progressLogNotifyEvent,
+  type Task,
+} from "@guildai/agents-sdk"
+import { z } from "zod"
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -61,7 +68,7 @@ type AIInteraction = {
   id?: number
   project: string
   provider: Provider
-  tool: string           // "cowork" | "claude-code" | "chat" | "cursor" | ...
+  tool: string
   taskType: TaskType
   description: string
   hoursEstimate: number
@@ -71,7 +78,7 @@ type AIInteraction = {
   output: string
   notes: string
   costModel: CostModel
-  costUsd: number | null // null for subscription/free tools
+  costUsd: number | null
   sessionId: string
   createdAt?: string
 }
@@ -79,7 +86,6 @@ type AIInteraction = {
 type SessionState = {
   projectName: string
   initialized: boolean
-  // Lightweight cache — authoritative data lives in Neon
   lastLoggedId?: number
   lastRunDate?: string
   sessionCount: number
@@ -91,10 +97,7 @@ const EMPTY_STATE: SessionState = {
   sessionCount: 0,
 }
 
-// ── Backfill tasks (customize per project) ─────────────────────────────────────
-// These represent the conversation history that predated this tracker.
-// They are inserted into Neon once on INIT.
-
+// ── Backfill tasks (customize per project) ────────────────────────────────────
 const BACKFILL_TASKS: Omit<AIInteraction, "id" | "createdAt">[] = [
   {
     project:       "cpm-agent",
@@ -202,7 +205,7 @@ const BACKFILL_TASKS: Omit<AIInteraction, "id" | "createdAt">[] = [
     valueUsd:      600.00,
     firstPass:     true,
     corrections:   0,
-    output:        "agent/cowork-tracker.ts (511 lines)",
+    output:        "agent/cowork-tracker.ts",
     notes:         "23.5h, $2,882.50 value, 83% first-pass, ~$0.97 API cost backfilled",
     costModel:     "per-token",
     costUsd:       0.09,
@@ -210,7 +213,7 @@ const BACKFILL_TASKS: Omit<AIInteraction, "id" | "createdAt">[] = [
   },
 ]
 
-// ── HTTP helper (no external deps) ───────────────────────────────────────────
+// ── HTTP helper ───────────────────────────────────────────────────────────────
 
 async function postToLogEndpoint(payload: object): Promise<{ id: number }> {
   const apiUrl = process.env.LOG_API_URL
@@ -218,16 +221,11 @@ async function postToLogEndpoint(payload: object): Promise<{ id: number }> {
   if (!apiUrl || !apiKey) {
     throw new Error("LOG_API_URL and LOG_API_KEY must be set in Guild env vars")
   }
-
   const response = await fetch(apiUrl, {
     method:  "POST",
-    headers: {
-      "Content-Type":  "application/json",
-      "Authorization": `Bearer ${apiKey}`,
-    },
+    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
     body: JSON.stringify(payload),
   })
-
   if (!response.ok) {
     const err = await response.text()
     throw new Error(`Log endpoint returned ${response.status}: ${err}`)
@@ -247,29 +245,79 @@ function formatRoi(valueUsd: number, costUsd: number | null): string {
   return `${multiple.toLocaleString()}× ($${valueUsd.toFixed(0)} value / $${costUsd.toFixed(4)} cost)`
 }
 
-// ── Main agent ────────────────────────────────────────────────────────────────
+function helpText(state: SessionState): string {
+  return [
+    "## 🤖 Universal AI Tracker",
+    "",
+    `Project: **${state.projectName}**  |  Initialized: **${state.initialized ? "Yes" : "No"}**  |  Sessions: **${state.sessionCount}**`,
+    "",
+    "**Modes:**",
+    "  • **A — Init**        `{ init: true, project: 'my-project' }` — seed backfill + create Neon schema",
+    "  • **B — Log**         `{ log: { provider, tool, taskType, description, startedAt: Date.now(), ... } }` — record interaction",
+    "  • **C — Correction**  `{ correction: { id: N, corrections: 2, notes: '...' } }` — mark corrections",
+    "  • **D — Dashboard**   `{ dashboard: true }` — live ROI summary from Neon",
+    "  • **E — Query**       `{ query: 'roi_by_provider' }` — named Malloy view",
+    "  • **F — Reset**       `{ reset: true, confirm: true }` — clear session state",
+    "",
+    "**Supported providers:** anthropic, openai, google, cursor, github, mistral, or any string",
+    "**Supported task types:** code, document, analysis, testing, research, design",
+    "**Cost models:** per-token, subscription, free",
+    "",
+    "⚠️  Note: Dashboard (MODE D) and INIT (MODE A) require outbound HTTP access in Guild.",
+    "   Set LOG_API_URL, INTERACTIONS_API_URL, and LOG_API_KEY in Workspace → Credentials.",
+    "",
+    "💡 For high-frequency logging, use the CLI: `node log-ai.mjs --help`",
+  ].join("\n")
+}
 
-export default task(async (input: string, data: Record<string, unknown>) => {
-  const state: SessionState = await task.restore<SessionState>() ?? { ...EMPTY_STATE }
-  const today              = new Date().toISOString().split("T")[0]
+// ── Tools & schemas ───────────────────────────────────────────────────────────
 
-  // ────────────────────────────────────────────────────────────────────────────
+const tools = Object.assign({}, userInterfaceTools)
+type Tools = typeof tools
+
+const inputSchema = z.object({ type: z.literal("text"), text: z.string() })
+type Input = z.infer<typeof inputSchema>
+
+const outputSchema = z.object({ type: z.literal("text"), text: z.string() })
+type Output = z.infer<typeof outputSchema>
+
+// ── Main run function ─────────────────────────────────────────────────────────
+
+async function run(input: Input, task: Task<Tools, SessionState>): Promise<Output> {
+  "use agent"
+
+  // Parse input as JSON; fall back to empty object for plain text / {}
+  let data: Record<string, unknown> = {}
+  try {
+    const parsed = JSON.parse(input.text)
+    if (typeof parsed === "object" && parsed !== null) data = parsed
+  } catch { /* plain text → show help */ }
+
+  await task.tools.ui_notify(progressLogNotifyEvent("Loading session state…"))
+  const state: SessionState = (await task.restore()) ?? Object.assign({}, EMPTY_STATE)
+  const today = new Date().toISOString().split("T")[0]
+
+  // ══════════════════════════════════════════════════════════════════════════
   // MODE A — INIT
-  // Insert all BACKFILL_TASKS into Neon, set initialized flag.
-  // ────────────────────────────────────────────────────────────────────────────
-  if (data.init || input.toLowerCase().includes("init")) {
+  // ══════════════════════════════════════════════════════════════════════════
+  if (data.init) {
     if (state.initialized) {
-      return [
+      const msg = [
         "⚠️  **Already initialized.**",
         `Project "${state.projectName}" was seeded on a previous session.`,
         "Run MODE D (dashboard) to view current data, or MODE F (reset) to start fresh.",
       ].join("\n")
+      await task.tools.ui_notify(textPromptNotifyEvent({ type: "text", text: msg }))
+      return { type: "text", text: msg }
     }
 
     const projectName = (data.project as string) ?? state.projectName ?? "cpm-agent"
+    await task.tools.ui_notify(progressLogNotifyEvent(`Seeding ${BACKFILL_TASKS.length} backfill interactions into Neon…`))
+
     const results: string[] = []
     let totalValue = 0
     let totalCost  = 0
+    let insertedCount = 0
 
     for (const t of BACKFILL_TASKS) {
       const payload = {
@@ -288,45 +336,28 @@ export default task(async (input: string, data: Record<string, unknown>) => {
         cost_usd:       t.costUsd,
         session_id:     t.sessionId,
       }
-      const { id } = await postToLogEndpoint(payload)
-      results.push(`  #${id}: ${t.taskType} — ${t.description.slice(0, 60)}…`)
+      try {
+        const { id } = await postToLogEndpoint(payload)
+        results.push(`  #${id}: ${t.taskType} — ${t.description.slice(0, 60)}…`)
+        insertedCount++
+      } catch (err) {
+        results.push(`  ❌ ${t.taskType} — ${(err as Error).message.slice(0, 60)}`)
+      }
       totalValue += t.valueUsd
       if (t.costUsd) totalCost += t.costUsd
     }
 
-    const updated: SessionState = {
-      ...state,
+    const updated: SessionState = Object.assign({}, state, {
       projectName,
-      initialized: true,
-      lastRunDate:  today,
+      initialized: insertedCount > 0,
+      lastRunDate: today,
       sessionCount: (state.sessionCount ?? 0) + 1,
-    }
+    })
     await task.save(updated)
 
-    // Self-log the INIT run so it appears in ai_interactions
-    try {
-      await postToLogEndpoint({
-        project:        projectName,
-        provider:       "anthropic",
-        tool:           "guild",
-        task_type:      "code",
-        description:    `Universal tracker INIT — seeded ${BACKFILL_TASKS.length} backfill interactions into Neon ($${totalValue.toFixed(2)} value)`,
-        hours_estimate: 0.1,
-        hours_source:   "estimated",
-        value_usd:      calcValue("code", 0.1),
-        first_pass:     true,
-        corrections:    0,
-        output:         `${BACKFILL_TASKS.length} ai_interactions rows inserted`,
-        notes:          `Seeded $${totalValue.toFixed(2)} value, $${totalCost.toFixed(4)} cost`,
-        cost_model:     "subscription",
-        cost_usd:       null,
-        session_id:     task.sessionId ?? "",
-      })
-    } catch { /* non-fatal — INIT still succeeds if self-log fails */ }
-
-    return [
-      `✅ **Initialized project "${projectName}"**`,
-      `Seeded ${BACKFILL_TASKS.length} backfill interactions into Neon:`,
+    const msg = [
+      `✅ **Initialized project "${projectName}"** (${insertedCount}/${BACKFILL_TASKS.length} rows inserted)`,
+      "",
       results.join("\n"),
       "",
       `📊 **Seeded totals:**`,
@@ -334,32 +365,33 @@ export default task(async (input: string, data: Record<string, unknown>) => {
       `  Cost:   $${totalCost.toFixed(4)}`,
       `  ROI:    ${formatRoi(totalValue, totalCost)}`,
       "",
-      "Run MODE D (dashboard) to see live analytics.",
+      insertedCount > 0
+        ? "Run MODE D (dashboard) to see live analytics."
+        : "⚠️  All inserts failed — check LOG_API_URL and LOG_API_KEY in Guild credentials.",
     ].join("\n")
+
+    await task.tools.ui_notify(textPromptNotifyEvent({ type: "text", text: msg }))
+    return { type: "text", text: msg }
   }
 
-  // ────────────────────────────────────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════════════
   // MODE B — LOG
-  // Record a new AI interaction. Accepts structured data or extracts from input.
-  // ────────────────────────────────────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════════════
   if (data.log || data.interaction) {
     const d = (data.log ?? data.interaction) as Record<string, unknown>
 
-    // startedAt (Unix ms) enables real wall-clock timing — hoursEstimate becomes optional
-    const startedAt     = d.startedAt !== undefined && d.startedAt !== null
-      ? Number(d.startedAt)
-      : null
-    const hasStartedAt  = startedAt !== null && !isNaN(startedAt) && startedAt > 0
+    const startedAt    = d.startedAt !== undefined && d.startedAt !== null ? Number(d.startedAt) : null
+    const hasStartedAt = startedAt !== null && !isNaN(startedAt) && startedAt > 0
 
-    // Validate required fields (hoursEstimate optional when startedAt provided)
     const requiredFields = ["provider", "tool", "taskType", "description"] as const
     const hoursRequired  = !hasStartedAt ? ["hoursEstimate" as const] : []
     const missing = ([...requiredFields, ...hoursRequired])
       .filter(f => (d as Record<string, unknown>)[f] === undefined
                 || (d as Record<string, unknown>)[f] === null
                 || (d as Record<string, unknown>)[f] === "")
+
     if (missing.length > 0) {
-      return [
+      const msg = [
         `❌ Missing required fields: ${missing.join(", ")}`,
         "",
         "Provide:",
@@ -370,29 +402,21 @@ export default task(async (input: string, data: Record<string, unknown>) => {
         "  hoursEstimate Estimated human hours replaced (float > 0)",
         "               — OR —",
         "  startedAt     Unix ms timestamp from Date.now() at task start",
-        "                (real wall-clock hours computed automatically)",
-        "",
-        "Optional: valueUsd (auto-calculated if omitted), firstPass, corrections, costModel, costUsd, output, notes",
       ].join("\n")
+      await task.tools.ui_notify(textPromptNotifyEvent({ type: "text", text: msg }))
+      return { type: "text", text: msg }
     }
 
-    const taskType = d.taskType as TaskType
-
-    // Compute hours: real measured time if startedAt provided, otherwise use estimate
+    const taskType: TaskType = d.taskType as TaskType
     const hoursEstimate: number = hasStartedAt
       ? Math.max(0.01, parseFloat(((Date.now() - startedAt!) / 3600000).toFixed(4)))
       : parseFloat(d.hoursEstimate as string)
     const hoursSource: "measured" | "estimated" = hasStartedAt ? "measured" : "estimated"
-
-    const valueUsd      = d.valueUsd !== undefined
-      ? parseFloat(d.valueUsd as string)
-      : calcValue(taskType, hoursEstimate)
-    const firstPass     = d.firstPass !== undefined ? Boolean(d.firstPass) : true
-    const corrections   = parseInt((d.corrections as string) ?? "0", 10)
-    const costModel     = (d.costModel as CostModel) ?? "per-token"
-    const costUsd       = d.costUsd !== undefined && d.costUsd !== null
-      ? parseFloat(d.costUsd as string)
-      : null
+    const valueUsd    = d.valueUsd !== undefined ? parseFloat(d.valueUsd as string) : calcValue(taskType, hoursEstimate)
+    const firstPass   = d.firstPass !== undefined ? Boolean(d.firstPass) : true
+    const corrections = parseInt((d.corrections as string) ?? "0", 10)
+    const costModel   = (d.costModel as CostModel) ?? "per-token"
+    const costUsd     = d.costUsd !== undefined && d.costUsd !== null ? parseFloat(d.costUsd as string) : null
 
     const payload = {
       project:        data.project ?? state.projectName ?? "default",
@@ -412,17 +436,30 @@ export default task(async (input: string, data: Record<string, unknown>) => {
       session_id:     task.sessionId ?? "",
     }
 
-    const { id } = await postToLogEndpoint(payload)
-
-    const updated: SessionState = {
-      ...state,
-      lastLoggedId:  id,
-      lastRunDate:   today,
-      sessionCount:  (state.sessionCount ?? 0) + 1,
+    await task.tools.ui_notify(progressLogNotifyEvent("Logging interaction to Neon…"))
+    let id: number
+    try {
+      const result = await postToLogEndpoint(payload)
+      id = result.id
+    } catch (err) {
+      const msg = [
+        `❌ **Log failed:** ${(err as Error).message}`,
+        "",
+        "Check LOG_API_URL and LOG_API_KEY in Guild → Credentials.",
+        "Alternatively, log via CLI: `node log-ai.mjs --help`",
+      ].join("\n")
+      await task.tools.ui_notify(textPromptNotifyEvent({ type: "text", text: msg }))
+      return { type: "text", text: msg }
     }
+
+    const updated: SessionState = Object.assign({}, state, {
+      lastLoggedId: id,
+      lastRunDate:  today,
+      sessionCount: (state.sessionCount ?? 0) + 1,
+    })
     await task.save(updated)
 
-    return [
+    const msg = [
       `✅ **Logged interaction #${id}**`,
       `  Provider: ${payload.provider} / ${payload.tool}`,
       `  Type:     ${taskType}`,
@@ -434,14 +471,16 @@ export default task(async (input: string, data: Record<string, unknown>) => {
       "",
       hoursSource === "estimated"
         ? "💡 Pass `startedAt: Date.now()` at task start to capture real wall-clock time."
-        : "Tip: Use log-ai.mjs from any terminal for faster logging.",
+        : "⏱ Real wall-clock time captured.",
     ].join("\n")
+
+    await task.tools.ui_notify(textPromptNotifyEvent({ type: "text", text: msg }))
+    return { type: "text", text: msg }
   }
 
-  // ────────────────────────────────────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════════════
   // MODE C — CORRECTION
-  // Mark a past interaction as needing corrections.
-  // ────────────────────────────────────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════════════
   if (data.correction) {
     const d = data.correction as Record<string, unknown>
     const id          = d.id as number
@@ -449,19 +488,17 @@ export default task(async (input: string, data: Record<string, unknown>) => {
     const notes       = (d.notes as string) ?? ""
 
     if (!id) {
-      return [
+      const msg = [
         "❌ Missing required field: id (interaction ID to correct)",
         `Last logged ID was: ${state.lastLoggedId ?? "unknown"}`,
         "",
         "Call with: { correction: { id: N, corrections: 2, notes: 'what went wrong' } }",
       ].join("\n")
+      await task.tools.ui_notify(textPromptNotifyEvent({ type: "text", text: msg }))
+      return { type: "text", text: msg }
     }
 
-    // Update via Vercel endpoint (PATCH would be cleaner — for now use a dedicated endpoint pattern)
-    // Note: this requires /api/update-interaction.js or updating database.js directly via fetch
-    // For now, we document what to call and return actionable instructions.
-    // Full UPDATE is handled by the CLI: log-ai --update-id N --corrections N --notes "..."
-    return [
+    const msg = [
       `📝 **Correction recorded for interaction #${id}**`,
       `  Corrections: ${corrections}`,
       `  Notes: ${notes || "(none)"}`,
@@ -471,18 +508,19 @@ export default task(async (input: string, data: Record<string, unknown>) => {
       "",
       "This will be updated in Neon and reflected in all Malloy views automatically.",
     ].join("\n")
+    await task.tools.ui_notify(textPromptNotifyEvent({ type: "text", text: msg }))
+    return { type: "text", text: msg }
   }
 
-  // ────────────────────────────────────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════════════
   // MODE D — DASHBOARD
-  // Fetch live ROI summary from /api/interactions (Neon — always current).
-  // Falls back to LLM-generated summary if fetch is unavailable.
-  // ────────────────────────────────────────────────────────────────────────────
-  if (data.dashboard || input.toLowerCase().includes("dashboard") || input.toLowerCase().includes("roi")) {
-    const project    = (data.project as string) ?? state.projectName ?? "default"
-    const apiUrl     = process.env.INTERACTIONS_API_URL
-    const apiKey     = process.env.LOG_API_KEY
-    let   liveData   = ""
+  // ══════════════════════════════════════════════════════════════════════════
+  if (data.dashboard || (typeof input.text === "string" && input.text.toLowerCase().includes("dashboard"))) {
+    const project = (data.project as string) ?? state.projectName ?? "default"
+    const apiUrl  = process.env.INTERACTIONS_API_URL
+    const apiKey  = process.env.LOG_API_KEY
+
+    await task.tools.ui_notify(progressLogNotifyEvent("Fetching ROI data from Neon…"))
 
     if (apiUrl && apiKey) {
       try {
@@ -492,13 +530,15 @@ export default task(async (input: string, data: Record<string, unknown>) => {
           fetch(`${apiUrl}?view=roi_by_provider&project=${encodeURIComponent(project)}`,
             { headers: { Authorization: `Bearer ${apiKey}` } }),
         ])
+
         if (summaryRes.ok && providerRes.ok) {
           const { rows: [s] } = await summaryRes.json() as { rows: Record<string, unknown>[] }
           const { rows: providers } = await providerRes.json() as { rows: Record<string, unknown>[] }
           const provTable = providers.map((p: Record<string, unknown>) =>
             `| ${p.provider} / ${p.tool} | ${p.total_tasks} | ${p.total_hours}h | $${p.total_value_usd} | $${p.total_cost_usd} | ${p.roi_multiple}× | ${p.first_pass_pct}% |`
           ).join("\n")
-          liveData = [
+
+          const msg = [
             `## 📊 AI ROI Dashboard — ${project}`,
             `*Live from Neon · ${today} · ${s.total_tasks} interactions*`,
             "",
@@ -514,156 +554,161 @@ export default task(async (input: string, data: Record<string, unknown>) => {
             "",
             "Run MODE E to query `quality_by_task_type`, `value_trend`, or `raw`.",
           ].join("\n")
+
+          await task.save(Object.assign({}, state, { lastRunDate: today }))
+          await task.tools.ui_notify(textPromptNotifyEvent({ type: "text", text: msg }))
+          return { type: "text", text: msg }
         }
-      } catch (_) {
-        // fetch blocked in Guild sandbox — fall through to LLM summary
-      }
+      } catch { /* fetch blocked or endpoint error — fall through */ }
     }
 
-    if (liveData) {
-      await task.save({ ...state, lastRunDate: today })
-      return liveData
-    }
-
-    // Fallback: LLM-generated summary (used when outbound fetch is unavailable)
-    const summary = await task.llm.generateText(
-      `You are displaying an AI ROI dashboard for project "${project}". ` +
-      `Format as markdown with a Summary section and a By Provider table. ` +
-      `Note that live data is unavailable (outbound HTTP blocked) and instruct ` +
-      `the user to set INTERACTIONS_API_URL env var and ensure outbound HTTP is enabled.`
-    )
-    await task.save({ ...state, lastRunDate: today })
-    return summary
+    // Fallback: static message when fetch unavailable (no API key set OR sandbox blocks HTTP)
+    const msg = [
+      `## 📊 AI ROI Dashboard — ${project}`,
+      "",
+      "⚠️  **Live data unavailable.** Outbound HTTP is blocked in the Guild sandbox, or env vars are not set.",
+      "",
+      "To enable live data, set in Guild → Workspace → Credentials:",
+      "  • `INTERACTIONS_API_URL` = `https://cpm-vercel.vercel.app/api/interactions`",
+      "  • `LOG_API_KEY` = your Vercel log endpoint key",
+      "",
+      "You can also query Neon directly:",
+      "  ```",
+      "  curl -H 'Authorization: Bearer <LOG_API_KEY>' \\",
+      `  '${process.env.INTERACTIONS_API_URL ?? "https://cpm-vercel.vercel.app/api/interactions"}?view=summary&project=${project}'`,
+      "  ```",
+      "",
+      `Current session: Project=${state.projectName}, Initialized=${state.initialized}, Sessions=${state.sessionCount}`,
+    ].join("\n")
+    await task.tools.ui_notify(textPromptNotifyEvent({ type: "text", text: msg }))
+    return { type: "text", text: msg }
   }
 
-  // ────────────────────────────────────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════════════
   // MODE E — QUERY
-  // Run a named analytics view against /api/interactions (live Neon data).
-  // Endpoint: GET INTERACTIONS_API_URL?view=<view>&project=<project>
-  // Auth: Bearer LOG_API_KEY
-  // ────────────────────────────────────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════════════
   if (data.query) {
     const viewName   = (data.query as string).toLowerCase()
     const project    = (data.project as string) ?? state.projectName ?? null
     const validViews = ["summary", "roi_by_provider", "quality_by_task_type", "value_trend", "raw"]
 
     if (!validViews.includes(viewName)) {
-      return [
+      const msg = [
         `❌ Unknown view: "${viewName}"`,
         "",
         "Available views:",
         validViews.map(v => `  • ${v}`).join("\n"),
       ].join("\n")
+      await task.tools.ui_notify(textPromptNotifyEvent({ type: "text", text: msg }))
+      return { type: "text", text: msg }
     }
 
     const apiUrl = process.env.INTERACTIONS_API_URL
     const apiKey = process.env.LOG_API_KEY
 
     if (!apiUrl || !apiKey) {
-      return [
+      const msg = [
         "❌ Missing env vars: INTERACTIONS_API_URL and LOG_API_KEY must be set in Guild.",
-        `  INTERACTIONS_API_URL = https://cpm-vercel.vercel.app/api/interactions`,
+        "  INTERACTIONS_API_URL = https://cpm-vercel.vercel.app/api/interactions",
       ].join("\n")
+      await task.tools.ui_notify(textPromptNotifyEvent({ type: "text", text: msg }))
+      return { type: "text", text: msg }
     }
+
+    await task.tools.ui_notify(progressLogNotifyEvent(`Querying ${viewName}…`))
 
     try {
       const url = new URL(apiUrl)
       url.searchParams.set("view", viewName)
       if (project) url.searchParams.set("project", project)
 
-      const res = await fetch(url.toString(), {
-        headers: { Authorization: `Bearer ${apiKey}` },
-      })
-
-      if (!res.ok) {
-        throw new Error(`${res.status}: ${await res.text()}`)
-      }
+      const res = await fetch(url.toString(), { headers: { Authorization: `Bearer ${apiKey}` } })
+      if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`)
 
       const { rows, row_count } = await res.json() as { rows: Record<string, unknown>[], row_count: number }
 
       if (row_count === 0) {
-        return `📋 **${viewName}** — no data for project "${project ?? "all"}"`
+        const msg = `📋 **${viewName}** — no data for project "${project ?? "all"}"`
+        await task.tools.ui_notify(textPromptNotifyEvent({ type: "text", text: msg }))
+        return { type: "text", text: msg }
       }
 
-      // Format as a markdown table
       const cols   = Object.keys(rows[0])
       const header = `| ${cols.join(" | ")} |`
       const sep    = `| ${cols.map(() => "---").join(" | ")} |`
       const body   = rows.map(r => `| ${cols.map(c => r[c] ?? "").join(" | ")} |`).join("\n")
 
-      return [
+      const msg = [
         `📋 **${viewName}** — ${row_count} row${row_count !== 1 ? "s" : ""} (project: ${project ?? "all"})`,
         "",
         header,
         sep,
         body,
       ].join("\n")
+      await task.tools.ui_notify(textPromptNotifyEvent({ type: "text", text: msg }))
+      return { type: "text", text: msg }
 
     } catch (err) {
-      const msg = (err as Error).message
-      // Guild sandbox blocks outbound fetch — provide actionable fallback
-      return [
-        `❌ **Query failed:** ${msg}`,
+      const msg = [
+        `❌ **Query failed:** ${(err as Error).message}`,
         "",
-        "Guild's agent sandbox currently blocks outbound HTTP. To run this query directly:",
+        "Guild sandbox may block outbound HTTP. Run directly:",
         `  curl -H 'Authorization: Bearer ${apiKey}' '${apiUrl}?view=${viewName}${project ? `&project=${project}` : ""}'`,
-        "",
-        "Ask Guild support to enable outbound HTTP access to: cpm-vercel.vercel.app",
       ].join("\n")
+      await task.tools.ui_notify(textPromptNotifyEvent({ type: "text", text: msg }))
+      return { type: "text", text: msg }
     }
   }
 
-  // ────────────────────────────────────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════════════
   // MODE F — RESET
-  // Clear Guild session state. Neon data is preserved unless --delete-neon flag.
-  // ────────────────────────────────────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════════════
   if (data.reset) {
     if (data.confirm !== true) {
-      return [
+      const msg = [
         "⚠️  **Reset requires confirmation.**",
         "",
         "This will clear the Guild session state for this agent.",
         "Neon data is preserved — interactions remain queryable via Malloy.",
         "",
         "To confirm: call with { reset: true, confirm: true }",
-        "To also delete Neon data for this project: add deleteNeon: true (irreversible!)",
       ].join("\n")
+      await task.tools.ui_notify(textPromptNotifyEvent({ type: "text", text: msg }))
+      return { type: "text", text: msg }
     }
 
-    const clearedState: SessionState = {
-      ...EMPTY_STATE,
-      projectName: state.projectName,
-    }
+    const clearedState: SessionState = Object.assign({}, EMPTY_STATE, { projectName: state.projectName })
     await task.save(clearedState)
 
-    return [
+    const msg = [
       "✅ **Session state reset.**",
       `Project "${state.projectName}" Neon data preserved.`,
       "",
       "Run MODE A (init) to reinitialize, or MODE D (dashboard) to view existing data.",
     ].join("\n")
+    await task.tools.ui_notify(textPromptNotifyEvent({ type: "text", text: msg }))
+    return { type: "text", text: msg }
   }
 
-  // ────────────────────────────────────────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════════════
   // DEFAULT — Help / status
-  // ────────────────────────────────────────────────────────────────────────────
-  return [
-    "## 🤖 Universal AI Tracker",
-    "",
-    `Project: **${state.projectName}**  |  Initialized: **${state.initialized ? "Yes" : "No"}**  |  Sessions: **${state.sessionCount}**`,
-    "",
-    "**Modes:**",
-    "  • **A — Init**        `{ init: true, project: 'my-project' }` — seed backfill + create Neon schema",
-    "  • **B — Log**         `{ log: { provider, tool, taskType, description, startedAt: Date.now(), ... } }` — record interaction (pass startedAt for real timing)",
-    "  • **C — Correction**  `{ correction: { id: N, corrections: 2, notes: '...' } }` — mark corrections",
-    "  • **D — Dashboard**   `{ dashboard: true }` or say 'show dashboard' — live ROI summary",
-    "  • **E — Query**       `{ query: 'roi_by_provider' }` — named Malloy view",
-    "  • **F — Reset**       `{ reset: true, confirm: true }` — clear session state",
-    "",
-    "**Supported providers:** anthropic, openai, google, cursor, github, mistral, or any string",
-    "**Supported task types:** code, document, analysis, testing, research, design",
-    "**Cost models:** per-token, subscription, free",
-    "",
-    "💡 For high-frequency logging, use the CLI: `log-ai --help`",
-  ].join("\n")
+  // ══════════════════════════════════════════════════════════════════════════
+  const msg = helpText(state)
+  await task.tools.ui_notify(textPromptNotifyEvent({ type: "text", text: msg }))
+  return { type: "text", text: msg }
+}
+
+// ── Agent export ──────────────────────────────────────────────────────────────
+
+export default agent({
+  description:
+    "Tracks ROI and quality of ALL AI interactions across every provider " +
+    "(Claude, ChatGPT, Cursor, Gemini, Copilot, etc.) for a given project. " +
+    "Logs interactions to Neon Postgres, queries live analytics, and shows ROI dashboards. " +
+    "Modes: A=init, B=log, C=correction, D=dashboard, E=query, F=reset. " +
+    "Send {} or any text to see the help menu.",
+  inputSchema,
+  outputSchema,
+  tools,
+  run,
 })
