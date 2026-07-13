@@ -107,7 +107,7 @@ type SessionState = {
 
 const EMPTY_STATE: SessionState = {
   projectName:      "CPM Agent — Cowork Session",
-  sessionStartDate: "2026-07-02",
+  sessionStartDate: new Date().toISOString().slice(0, 10),
   initialized:      false,
   tasks:            [],
   corrections:      [],
