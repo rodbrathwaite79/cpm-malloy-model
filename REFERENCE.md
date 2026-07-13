@@ -61,7 +61,7 @@ That's it. Everything else is configuration and plumbing that makes those two th
 
 **Primary scheduler:** Vercel serverless cron — runs every Monday regardless of whether any Mac is on.  
 **Mac launchd:** Backup runner on MacBook. Also fires Monday 8am local time.  
-**Database:** Neon Postgres (cloud) — 210+ CPM rows + 11 AI interaction records (after removing mislabeled entries).  
+**Database:** Neon Postgres (cloud) — 210+ CPM rows + 18 AI interaction records.  
 **Email:** Resend REST API — free tier, no SMTP needed.  
 **Session logging:** GitHub Actions — runs in cloud on push, works from any machine.
 
@@ -498,7 +498,7 @@ UNIQUE: (year, month, channel)
 -- CPM report run log
 agent_runs (id, run_date, source, outcome, input_tokens, output_tokens, data_points_found, created_at)
 
--- AI interaction tracker (11 records as of July 2026; 12 mislabeled git-hook entries removed)
+-- AI interaction tracker (18 records as of July 2026)
 ai_interactions (
   id, project, provider, tool, task_type, description,
   hours_estimate, hours_source, value_usd, first_pass, corrections,

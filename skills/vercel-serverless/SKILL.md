@@ -76,9 +76,10 @@ For string bodies: `typeof req.body === "string" ? JSON.parse(req.body) : req.bo
 
 ## Deploy
 ```bash
-cd cpm-vercel/
+cd ~/Documents/cpm-agent/malloy-model-git
 vercel --prod
 ```
+Run from the repo root, **not** from inside `cpm-vercel/` (causes a path error).
 Env vars carry over from the dashboard — no local `.env` needed for deployment.
 
 ## Key env vars for this project

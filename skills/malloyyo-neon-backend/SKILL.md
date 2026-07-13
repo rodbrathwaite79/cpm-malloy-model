@@ -51,10 +51,14 @@ Both sources use the `neon` connection defined in `malloy-config.json`.
 | `MALLOYYO_TOKEN` | Auth token for MCP access (optional, for private deployments) |
 
 ## Deploy after model changes
+> ⚠️ **Note:** Malloyyo is a separate Vercel project from `cpm-vercel`. The `malloy-model-git/`
+> root's `.vercel/project.json` links to `cpm-vercel` — running `vercel --prod` there deploys
+> the CPM report, **not** Malloyyo. Malloyyo must be deployed from its own linked directory
+> or via the Vercel dashboard directly.
+
 ```bash
-cd ~/Documents/cpm-agent/malloy-model-git
-# Edit index.malloy or ai_tracker.malloy, then:
-vercel --prod   # deploys the malloyyo project
+# Edit index.malloy or ai_tracker.malloy in malloy-model-git/, then deploy via
+# the Vercel dashboard or from the Malloyyo-linked directory (separate from cpm-vercel).
 ```
 
 ## Querying via MCP (Guild agent / Claude tool call)
