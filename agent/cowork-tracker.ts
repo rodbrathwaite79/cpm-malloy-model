@@ -47,7 +47,6 @@
 import {
   agent,
   userInterfaceTools,
-  guildTools,
   textPromptNotifyEvent,
   progressLogNotifyEvent,
   type Task,
@@ -205,7 +204,7 @@ const BACKFILL_TASKS: Omit<ConversationTask, "sessionId" | "valueUsd">[] = [
 ]
 
 // ── Tools ──────────────────────────────────────────────────────────────────────
-const tools = Object.assign({}, userInterfaceTools, guildTools)
+const tools = Object.assign({}, userInterfaceTools)
 type Tools = typeof tools
 
 // ── Input / Output ─────────────────────────────────────────────────────────────
