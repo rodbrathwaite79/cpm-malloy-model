@@ -1,0 +1,61 @@
+{
+  "session_id": "2026-07-13-2000",
+  "session_start": "2026-07-13T20:00:00Z",
+  "session_end": "2026-07-13T21:06:09Z",
+  "provider": "claude",
+  "tool": "cowork",
+  "project": "cpm-agent",
+  "tasks": [
+    {
+      "type": "document",
+      "description": "Full audit of all .html and .md files in the repo (34 files). Fixed stale ai_interactions count (11→18) in REFERENCE.md and Architecture Guide. Fixed Vercel deploy path in vercel-serverless SKILL.md. Added Malloyyo deploy warning to malloyyo-neon-backend SKILL.md. All other files verified accurate.",
+      "start": "2026-07-13T20:00:00Z",
+      "end": "2026-07-13T20:45:00Z",
+      "duration_minutes": 45,
+      "human_equivalent_hours": 4.0,
+      "value_usd": 320,
+      "first_pass": true,
+      "output": "REFERENCE.md, CPM Agent — Architecture & ROI Guide.html, skills/vercel-serverless/SKILL.md, skills/malloyyo-neon-backend/SKILL.md"
+    },
+    {
+      "type": "document",
+      "description": "Provided step-by-step Malloyyo redeployment instructions. Verified via Chrome MCP that Malloyyo was stale (~7.5 days). Confirmed cpm-vercel auto-deploys on every git push from Vercel dashboard screenshot.",
+      "start": "2026-07-13T20:45:00Z",
+      "end": "2026-07-13T20:55:00Z",
+      "duration_minutes": 10,
+      "human_equivalent_hours": 0.5,
+      "value_usd": 40,
+      "first_pass": true,
+      "output": null
+    },
+    {
+      "type": "document",
+      "description": "Updated Project Summary HTML: removed completed Vercel redeploy to-do item, added explicit GitHub token rotation steps with exact navigation path.",
+      "start": "2026-07-13T20:55:00Z",
+      "end": "2026-07-13T21:00:00Z",
+      "duration_minutes": 5,
+      "human_equivalent_hours": 0.25,
+      "value_usd": 20,
+      "first_pass": true,
+      "output": "CPM Agent System — Project Summary (Updated).html"
+    },
+    {
+      "type": "document",
+      "description": "Rotated exposed GitHub token: provided explicit vercel env and sed commands, scrubbed old token from REFERENCE.md and Project Summary HTML, marked rotation complete July 2026.",
+      "start": "2026-07-13T21:00:00Z",
+      "end": "2026-07-13T21:06:09Z",
+      "duration_minutes": 6,
+      "human_equivalent_hours": 0.25,
+      "value_usd": 20,
+      "first_pass": true,
+      "output": "REFERENCE.md, CPM Agent System — Project Summary (Updated).html"
+    }
+  ],
+  "summary": {
+    "primary_task_type": "document",
+    "total_human_equivalent_hours": 5.0,
+    "total_value_usd": 400,
+    "first_pass": true,
+    "corrections": 0
+  }
+}
