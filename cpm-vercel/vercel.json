@@ -3,15 +3,16 @@
     {
       "path": "/api/cpm-report",
       "schedule": "0 13 * * 1"
+    },
+    {
+      "path": "/api/monthly-comparison",
+      "schedule": "0 13 1 * *"
     }
   ],
   "functions": {
-    "api/cpm-report.js": {
-      "maxDuration": 120
-    },
-    "api/metrics.js": {
-      "maxDuration": 10
-    }
+    "api/cpm-report.js":          { "maxDuration": 120 },
+    "api/monthly-comparison.js":  { "maxDuration": 120 },
+    "api/metrics.js":             { "maxDuration": 10 }
   },
   "headers": [
     {
