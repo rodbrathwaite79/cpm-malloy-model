@@ -6,7 +6,7 @@
  * What it does:
  *   1. Queries Neon for the two most recent complete months of CPM data
  *   2. Calculates MoM variance per channel
- *   3. Flags any channel with >2.5% variance
+ *   3. Flags any channel with >2.0% variance
  *   4. For each flagged channel: searches Brave, fetches page text, synthesizes
  *      a factual explanation via Claude Haiku grounded only in source material
  *   5. Rates source confidence — only reports explanation if ≥80% confidence
@@ -33,7 +33,7 @@ import { initSchema, queryBenchmarks } from "../lib/database.js"
 import { CHANNEL_LABELS, MONTH_NAMES } from "../lib/report-html.js"
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-const VARIANCE_THRESHOLD   = 0.025 // 2.5% MoM change triggers research
+const VARIANCE_THRESHOLD   = 0.020 // 2.0% MoM change triggers research
 const CONFIDENCE_THRESHOLD = 0.80  // 80% source confidence required to report a cause
 
 const CREDIBLE_SOURCES = [
@@ -350,8 +350,8 @@ function buildEmailHtml(curMonth, curYear, prevMonth, prevYear, variances, flagg
   ).join("")
 
   const headline = flagged.length > 0
-    ? `⚠️ ${flagged.length} channel${flagged.length > 1 ? "s" : ""} with variance &gt;2.5%`
-    : `✅ All channels within normal range (&lt;2.5%)`
+    ? `⚠️ ${flagged.length} channel${flagged.length > 1 ? "s" : ""} with variance &gt;2.0%`
+    : `✅ All channels within normal range (&lt;2.0%)`
 
   return `<!DOCTYPE html>
 <html>
@@ -365,12 +365,12 @@ function buildEmailHtml(curMonth, curYear, prevMonth, prevYear, variances, flagg
 
   ${flagged.length > 0 ? `
   <h2 style="font-size:16px;font-weight:600;color:#c0392b;border-bottom:2px solid #c0392b;padding-bottom:8px;margin-bottom:16px">
-    Significant Variances (&gt;2.5% MoM)
+    Significant Variances (&gt;2.0% MoM)
   </h2>
   ${flaggedRows}
   ` : `
   <div style="background:#d4edda;border:1px solid #c3e6cb;border-radius:8px;padding:16px;margin-bottom:24px;color:#155724">
-    <strong>No significant variances detected.</strong> All channels moved less than 2.5% month-over-month. No research required.
+    <strong>No significant variances detected.</strong> All channels moved less than 2.0% month-over-month. No research required.
   </div>
   `}
 
@@ -392,7 +392,7 @@ function buildEmailHtml(curMonth, curYear, prevMonth, prevYear, variances, flagg
   ` : ""}
 
   <div style="margin-top:32px;padding-top:16px;border-top:1px solid #dee2e6;font-size:11px;color:#adb5bd">
-    CPM Agent · Monthly variance analysis · Threshold: 2.5% · Confidence requirement: 80%<br>
+    CPM Agent · Monthly variance analysis · Threshold: 2.0% · Confidence requirement: 80%<br>
     Explanations synthesized by Claude Haiku from verified industry sources only. No speculation included.
   </div>
 </body>
@@ -423,6 +423,12 @@ export default async function handler(req, res) {
   const curYear   = forceYear  ?? (now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear())
   const prevMonth = curMonth === 1 ? 12 : curMonth - 1
   const prevYear  = curMonth === 1 ? curYear - 1 : curYear
+
+  // Only run comparisons where both months are in 2026
+  if (curYear < 2026 || prevYear < 2026) {
+    console.log(`Skipping: both months must be in 2026 (got ${MONTH_NAMES[curMonth]} ${curYear} vs ${MONTH_NAMES[prevMonth]} ${prevYear})`)
+    return res.status(200).json({ ok: true, skipped: true, reason: "Both comparison months must be in 2026" })
+  }
 
   console.log(`\nMonthly Comparison: ${MONTH_NAMES[curMonth]} ${curYear} vs ${MONTH_NAMES[prevMonth]} ${prevYear}`)
   console.log(`Variance threshold: ${VARIANCE_THRESHOLD * 100}% | Confidence threshold: ${CONFIDENCE_THRESHOLD * 100}%`)
