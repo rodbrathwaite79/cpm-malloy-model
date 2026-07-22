@@ -275,7 +275,7 @@ async function sendEmail(subject, html, attachments = []) {
 // ── Variance analysis helpers ─────────────────────────────────────────────────
 function rateConfidence(results) {
   const credibleCount = results.filter(r =>
-    CREDIBLE_SOURCES.some(s => (r.url ?? "").includes(s)) && (r.excerpt ?? "").length > 40
+    CREDIBLE_SOURCES.some(s => (r.url ?? "").includes(s)) && (r.excerpt ?? "").length > 20
   ).length
   if (credibleCount >= 3) return 0.92
   if (credibleCount === 2) return 0.86
@@ -285,14 +285,12 @@ function rateConfidence(results) {
 }
 
 async function researchVariance(label, curMonth, curYear, directionPct) {
-  const monthName = MONTH_NAMES[curMonth]
-  const prevMonth = curMonth === 1 ? 12 : curMonth - 1
-  const prevName  = MONTH_NAMES[prevMonth]
-  const dirWord   = directionPct > 0 ? "increase spike" : "drop decline"
+  const q        = Math.ceil(curMonth / 3)
+  const dirWord  = directionPct > 0 ? "increase rising" : "drop declining"
   const queries = [
-    `"${label}" CPM ${dirWord} ${monthName} ${curYear} advertising market`,
-    `digital advertising ${monthName} ${curYear} ${label.toLowerCase()} CPM rates trend`,
-    `${label.toLowerCase()} ad market ${prevName} ${monthName} ${curYear} budget spend`,
+    `${label} CPM ${dirWord} Q${q} ${curYear} advertising market`,
+    `${label.toLowerCase()} CPM rates benchmark ${curYear} trend emarketer`,
+    `digital advertising ${label.toLowerCase()} CPM ${curYear} industry report`,
   ]
   const allResults = [], seenUrls = new Set()
   for (const q of queries) {
