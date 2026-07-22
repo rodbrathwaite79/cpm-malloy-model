@@ -8,7 +8,7 @@
  *   1. Queries Neon Postgres for historical CPM data
  *   2. On 1st of month: searches Brave for new CPM data, stores to Neon
  *   3. Researches market conditions via Brave
- *   4. (Optional) Synthesizes insights via Anthropic
+ *   4. Synthesizes rule-based insights + MoM variance analysis (2% threshold, 80% confidence)
  *   5. Sends HTML email via Resend (with dashboard attachment)
  *   6. Writes run record to Neon Postgres
  *
@@ -31,10 +31,14 @@ import {
 import { synthesizeInsights } from "../lib/insights.js"
 
 const CREDIBLE_SOURCES = [
-  "emarketer.com", "adsposure.com", "wordstream.com", "statista.com",
-  "iab.com", "comscore.com", "mediaradar.com", "adweek.com",
-  "searchengineland.com", "semrush.com", "hubspot.com",
+  "emarketer.com", "insiderintelligence.com", "adsposure.com", "wordstream.com",
+  "statista.com", "iab.com", "comscore.com", "mediaradar.com", "adweek.com",
+  "searchengineland.com", "semrush.com", "hubspot.com", "marketingdive.com",
+  "digiday.com", "wsj.com", "reuters.com", "bloomberg.com",
 ]
+
+const VARIANCE_THRESHOLD   = 0.020 // 2% MoM change triggers research
+const CONFIDENCE_THRESHOLD = 0.80  // 80% source confidence required
 
 const GITHUB_OWNER = "rodbrathwaite79"
 const GITHUB_REPO  = "cpm-malloy-model"
@@ -268,6 +272,144 @@ async function sendEmail(subject, html, attachments = []) {
   }
 }
 
+// ── Variance analysis helpers ─────────────────────────────────────────────────
+function rateConfidence(results) {
+  const credibleCount = results.filter(r =>
+    CREDIBLE_SOURCES.some(s => (r.url ?? "").includes(s)) && (r.excerpt ?? "").length > 40
+  ).length
+  if (credibleCount >= 3) return 0.92
+  if (credibleCount === 2) return 0.86
+  if (credibleCount === 1) return 0.74
+  if (results.length >= 3) return 0.55
+  return 0.35
+}
+
+async function researchVariance(label, curMonth, curYear, directionPct) {
+  const monthName = MONTH_NAMES[curMonth]
+  const prevMonth = curMonth === 1 ? 12 : curMonth - 1
+  const prevName  = MONTH_NAMES[prevMonth]
+  const dirWord   = directionPct > 0 ? "increase spike" : "drop decline"
+  const queries = [
+    `"${label}" CPM ${dirWord} ${monthName} ${curYear} advertising market`,
+    `digital advertising ${monthName} ${curYear} ${label.toLowerCase()} CPM rates trend`,
+    `${label.toLowerCase()} ad market ${prevName} ${monthName} ${curYear} budget spend`,
+  ]
+  const allResults = [], seenUrls = new Set()
+  for (const q of queries) {
+    for (const r of await braveSearch(q, 5)) {
+      if (!seenUrls.has(r.url)) { seenUrls.add(r.url); allResults.push(r) }
+    }
+  }
+  const confidence = rateConfidence(allResults)
+  if (confidence < CONFIDENCE_THRESHOLD) return null
+  const sources = allResults
+    .filter(r => CREDIBLE_SOURCES.some(s => (r.url ?? "").includes(s)))
+    .slice(0, 3)
+    .map(r => ({ title: r.title ?? "", url: r.url ?? "", excerpt: (r.description ?? "").slice(0, 200) }))
+  return { confidence, sources }
+}
+
+async function buildVarianceSection(rows) {
+  const index = {}
+  for (const r of rows) index[`${r.channel}-${r.year}-${r.month}`] = parseFloat(r.avg_cpm)
+
+  const monthSet = new Set()
+  for (const r of rows) monthSet.add(`${r.year}-${Number(r.month)}`)
+  const months = [...monthSet]
+    .map(s => { const [y, m] = s.split("-").map(Number); return { year: y, month: m, sort: y * 100 + m } })
+    .sort((a, b) => b.sort - a.sort)
+
+  if (months.length < 2) return ""
+
+  const { year: curYear, month: curMonth }   = months[0]
+  const { year: prevYear, month: prevMonth } = months[1]
+
+  if (curYear < 2026 || prevYear < 2026) return ""
+
+  const curName  = MONTH_NAMES[curMonth]
+  const prevName = MONTH_NAMES[prevMonth]
+
+  const variances = []
+  for (const [ch, label] of Object.entries(CHANNEL_LABELS)) {
+    const curCpm  = index[`${ch}-${curYear}-${curMonth}`]
+    const prevCpm = index[`${ch}-${prevYear}-${prevMonth}`]
+    if (curCpm == null || prevCpm == null) continue
+    const variancePct   = (curCpm - prevCpm) / prevCpm
+    const isSignificant = Math.abs(variancePct) > VARIANCE_THRESHOLD
+    variances.push({ label, curCpm, prevCpm, variancePct, isSignificant, research: null })
+  }
+
+  const flagged = variances.filter(v => v.isSignificant)
+  console.log(`      [variance] ${flagged.length} channel(s) flagged at >2% threshold`)
+  for (const entry of flagged) {
+    entry.research = await researchVariance(entry.label, curMonth, curYear, entry.variancePct)
+  }
+
+  const fmt$   = v => `$${Number(v).toFixed(2)}`
+  const fmtPct = v => (v >= 0 ? "+" : "") + (v * 100).toFixed(1) + "%"
+
+  const flaggedHtml = flagged.map(f => {
+    const dir   = f.variancePct > 0 ? "▲" : "▼"
+    const color = f.variancePct > 0 ? "#e74c3c" : "#27ae60"
+    const researchHtml = f.research
+      ? `<div style="margin-top:8px;padding:10px;background:#f8f9fa;border-left:3px solid #3498db;border-radius:0 4px 4px 0;font-size:13px">
+           <strong style="color:#185fa5">Market context · ${Math.round(f.research.confidence * 100)}% confidence</strong><br>
+           ${f.research.sources.map(s =>
+             `<a href="${s.url}" style="color:#3498db">${s.title}</a><br>
+              <span style="color:#666">${s.excerpt}</span>`
+           ).join("<br><br>")}
+         </div>`
+      : `<div style="margin-top:8px;padding:8px 10px;background:#fff3cd;border-left:3px solid #ffc107;border-radius:0 4px 4px 0;font-size:13px;color:#856404">
+           No verified market explanation found (confidence &lt;80%). Manual review recommended.
+         </div>`
+    return `<div style="border:1px solid #dee2e6;border-radius:8px;padding:14px 16px;margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <strong style="font-size:14px">${f.label}</strong>
+        <span style="color:${color};font-weight:600;font-size:15px">${dir} ${fmtPct(f.variancePct)}</span>
+      </div>
+      <div style="color:#666;font-size:13px;margin-top:4px">${prevName}: ${fmt$(f.prevCpm)} → ${curName}: ${fmt$(f.curCpm)}</div>
+      ${researchHtml}
+    </div>`
+  }).join("")
+
+  const stableRows = variances.filter(v => !v.isSignificant).map(v =>
+    `<tr>
+       <td style="padding:7px 10px;border-top:1px solid #f0f0f0">${v.label}</td>
+       <td style="padding:7px 10px;border-top:1px solid #f0f0f0;text-align:right">${fmt$(v.prevCpm)}</td>
+       <td style="padding:7px 10px;border-top:1px solid #f0f0f0;text-align:right">${fmt$(v.curCpm)}</td>
+       <td style="padding:7px 10px;border-top:1px solid #f0f0f0;text-align:right;color:${v.variancePct >= 0 ? "#e74c3c" : "#27ae60"}">${fmtPct(v.variancePct)}</td>
+     </tr>`
+  ).join("")
+
+  const stableTableHtml = stableRows ? `
+    <table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:8px">
+      <thead><tr style="background:#f8f9fa">
+        <th style="padding:7px 10px;text-align:left;font-weight:600">Channel</th>
+        <th style="padding:7px 10px;text-align:right;font-weight:600">${prevName}</th>
+        <th style="padding:7px 10px;text-align:right;font-weight:600">${curName}</th>
+        <th style="padding:7px 10px;text-align:right;font-weight:600">MoM</th>
+      </tr></thead>
+      <tbody>${stableRows}</tbody>
+    </table>` : ""
+
+  const summary = flagged.length > 0
+    ? `<span style="color:#e74c3c;font-weight:600">⚠️ ${flagged.length} channel${flagged.length > 1 ? "s" : ""} with variance &gt;2%</span>`
+    : `<span style="color:#27ae60;font-weight:600">✅ All channels within ±2% — no significant variances</span>`
+
+  return `
+<div style="margin-top:32px;padding-top:24px;border-top:2px solid #dee2e6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+  <h2 style="font-size:18px;font-weight:600;margin:0 0 4px">📊 Month-over-Month Variance Analysis</h2>
+  <p style="color:#666;font-size:13px;margin:0 0 14px">${curName} ${curYear} vs ${prevName} ${prevYear} · threshold ±2% · confidence ≥80%</p>
+  <p style="margin:0 0 14px">${summary}</p>
+  ${flaggedHtml}
+  ${stableTableHtml}
+  <p style="font-size:11px;color:#999;margin-top:16px">
+    Variance threshold: 2% · Confidence threshold: 80%<br>
+    Research sourced from eMarketer, IAB, Digiday, AdWeek, and other credible industry sources.
+  </p>
+</div>`
+}
+
 // ── Main handler ──────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
 
@@ -360,23 +502,27 @@ export default async function handler(req, res) {
   }
   console.log(`      Found ${webFindings.length} web sources`)
 
-  // ── Step 4b: Rule-based insight synthesis (no paid API) ──────────────────────
-  console.log("\n[4b] Synthesizing insights from data (rule-based, no API cost)…")
-  const aiInsights = synthesizeInsights(historicalRows)
-  const synthIn = 0, synthOut = 0
-  if (aiInsights) console.log("     ✅ Insights generated from", historicalRows.length, "data points")
-  else console.warn("     ⚠️  Not enough data for insights (need ≥ 2 rows)")
-
-  // ── Step 5: Build report and send ─────────────────────────────────────────
-  console.log("\n[5/5] Generating report and sending email…")
+  // ── Step 4b: Rule-based insight synthesis (no paid API) ───────────────────
+  console.log("\n[4b] Synthesizing insights (rule-based, no API cost)…")
   const allRows = [
     ...historicalRows,
     ...verifiedNewData.map(r => ({ channel: r.channel, year: r.year, month: r.month, avg_cpm: r.cpm, period_sort: r.year * 100 + r.month })),
   ]
+  const aiInsights = synthesizeInsights(allRows)
+  const synthIn = 0, synthOut = 0
+  if (aiInsights) console.log("     ✅ Insights generated from", allRows.length, "data points")
+  else console.warn("     ⚠️  Not enough data for insights (need ≥ 2 rows)")
+
+  // ── Step 4c: MoM variance analysis (2% threshold, 80% confidence) ─────────
+  console.log("\n[4c] Running month-over-month variance analysis…")
+  const varianceHtml = await buildVarianceSection(allRows)
+  console.log(`      Variance section: ${varianceHtml ? "built ✅" : "skipped (not enough 2026 data)"}`)
+
+  // ── Step 5: Build report and send ─────────────────────────────────────────
+  console.log("\n[5/5] Generating report and sending email…")
 
   const runOutcome = verifiedNewData.length > 0 ? "autonomous" : isFirstOfMonth ? "hitl" : "autonomous"
   const today      = now.toISOString().slice(0, 10)
-  const thisRun    = { date: today, outcome: runOutcome, inputTokens: synthIn, outputTokens: synthOut, dataPointsFound: verifiedNewData.length }
 
   // Write run to Neon
   await insertRun({ runDate: today, source: "vercel", outcome: runOutcome, inputTokens: synthIn, outputTokens: synthOut, dataPointsFound: verifiedNewData.length })
@@ -386,8 +532,9 @@ export default async function handler(req, res) {
   const dashBase64 = Buffer.from(dashHtml, "utf-8").toString("base64")
   const attachments = [{ filename: "CPM-Dashboard.html", content: dashBase64 }]
 
-  const html    = buildHtmlReport(allRows, webFindings, aiInsights, verifiedNewData, runDate, !!(cfg().geminiKey || cfg().anthropicKey))
-  const subject = `📊 CPM Month-over-Month Report — ${runDate}`
+  const baseHtml = buildHtmlReport(allRows, webFindings, aiInsights, verifiedNewData, runDate, !!(cfg().geminiKey || cfg().anthropicKey))
+  const html     = varianceHtml ? baseHtml.replace("</body>", `${varianceHtml}</body>`) : baseHtml
+  const subject  = `📊 CPM Weekly Report — ${runDate}`
 
   await sendEmail(subject, html, attachments)
 
