@@ -634,15 +634,15 @@ export default async function handler(req, res) {
   await insertRun({ runDate: today, source: "vercel", outcome: runOutcome, inputTokens: synthIn, outputTokens: synthOut, dataPointsFound: verifiedNewData.length })
 
   // Build dashboard and attach
-  const dashHtml   = buildInteractiveDashboard(allRows, runDate, aiInsights)
+  const dashHtml   = buildInteractiveDashboard(allRows, runDate, aiInsights, { demographic, geos })
   const dashBase64 = Buffer.from(dashHtml, "utf-8").toString("base64")
   const attachments = [{ filename: "CPM-Dashboard.html", content: dashBase64 }]
 
-  const baseHtml = buildHtmlReport(allRows, webFindings, aiInsights, verifiedNewData, runDate, !!(cfg().geminiKey || cfg().anthropicKey))
+  const baseHtml = buildHtmlReport(allRows, webFindings, aiInsights, verifiedNewData, runDate, !!(cfg().geminiKey || cfg().anthropicKey), { demographic, geos })
   const html     = varianceHtml ? baseHtml.replace("</body>", `${varianceHtml}</body>`) : baseHtml
   const subject  = targetingLabel
-    ? `📊 CPM Weekly Report [${targetingLabel}] — ${runDate}`
-    : `📊 CPM Weekly Report — ${runDate}`
+    ? `📊 CPM Monthly Report [${targetingLabel}] — ${runDate}`
+    : `📊 CPM Monthly Report — ${runDate}`
 
   await sendEmail(subject, html, attachments)
 

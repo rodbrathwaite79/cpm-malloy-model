@@ -334,8 +334,114 @@ export function buildEmailMetricsSection(stats, runHistory, thisRun) {
   </div>`
 }
 
+// ── Methodology section (shared between email + dashboard) ───────────────────
+function buildMethodologySection(targeting = {}) {
+  const { demographic = "", geos = [] } = targeting
+  const demoLabel = demographic
+    ? demographic.replace(/-(?=\d)/g, "\x00").replace(/-/g, " ").replace(/\x00/g, "-")
+    : "General audience (no demographic filter)"
+  const geoLabel = geos.length > 0
+    ? geos.map(g => {
+        const DMA_LABELS = { "sf-dma": "San Francisco DMA", "monterey-dma": "Monterey DMA" }
+        return DMA_LABELS[g] ?? g.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase()).replace(/\bDma\b/, "DMA")
+      }).join(" + ")
+    : "National (no geographic filter)"
+  return `
+  <div style="background:#1e293b;border-radius:8px;padding:16px;margin-bottom:20px;">
+    <div style="color:#f1f5f9;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">Methodology</div>
+    <table style="width:100%;border-collapse:collapse;font-size:12px;">
+      <tr>
+        <td style="color:#64748b;padding:4px 0;vertical-align:top;white-space:nowrap;padding-right:16px;width:140px;">Target Demographic</td>
+        <td style="color:#cbd5e1;padding:4px 0;">${demoLabel}</td>
+      </tr>
+      <tr>
+        <td style="color:#64748b;padding:4px 0;vertical-align:top;white-space:nowrap;padding-right:16px;">Geography</td>
+        <td style="color:#cbd5e1;padding:4px 0;">${geoLabel}</td>
+      </tr>
+      <tr>
+        <td style="color:#64748b;padding:4px 0;vertical-align:top;white-space:nowrap;padding-right:16px;">Channels Tracked</td>
+        <td style="color:#cbd5e1;padding:4px 0;">Paid Social, Paid Search, Programmatic Display, Video/CTV, Streaming Audio</td>
+      </tr>
+      <tr>
+        <td style="color:#64748b;padding:4px 0;vertical-align:top;white-space:nowrap;padding-right:16px;">Data Sources</td>
+        <td style="color:#cbd5e1;padding:4px 0;">eMarketer, IAB, Adsposure, WordStream, Digiday, AdWeek — verified via Brave Search (≥2 credible sources required for confirmed benchmarks)</td>
+      </tr>
+      <tr>
+        <td style="color:#64748b;padding:4px 0;vertical-align:top;white-space:nowrap;padding-right:16px;">Confidence Threshold</td>
+        <td style="color:#cbd5e1;padding:4px 0;">≥80% source confidence for verified market data · below this threshold, explanations are synthesized from known channel seasonality and industry dynamics</td>
+      </tr>
+      <tr>
+        <td style="color:#64748b;padding:4px 0;vertical-align:top;white-space:nowrap;padding-right:16px;">Variance Flag</td>
+        <td style="color:#cbd5e1;padding:4px 0;">Month-over-month changes &gt;±2% trigger a channel-level variance analysis</td>
+      </tr>
+      <tr>
+        <td style="color:#64748b;padding:4px 0;vertical-align:top;white-space:nowrap;padding-right:16px;">Historical Range</td>
+        <td style="color:#cbd5e1;padding:4px 0;">2023–2026 · stored in Neon Postgres · updated monthly on the 1st</td>
+      </tr>
+      <tr>
+        <td style="color:#64748b;padding:4px 0;vertical-align:top;white-space:nowrap;padding-right:16px;">Limitations</td>
+        <td style="color:#cbd5e1;padding:4px 0;">Benchmarks reflect published industry averages. Actual CPMs vary by placement, targeting parameters, creative format, and direct publisher relationships. DMA-level data may be extrapolated from national averages where local data is unavailable.</td>
+      </tr>
+    </table>
+  </div>`
+}
+
+// ── Considerations rendering (planning-aware) ─────────────────────────────────
+function buildConsiderationsHtml(recommendations, mode = "email") {
+  if (!recommendations || recommendations.length === 0) return ""
+  const isEmail = mode === "email"
+
+  const urgencyLabel = u => {
+    if (u === "immediate")     return "Immediate Review"
+    if (u === "this-quarter")  return "Next Planning Cycle"
+    return "Monitor"
+  }
+  const urgencyColor = u => {
+    if (u === "immediate")    return "#ef4444"
+    if (u === "this-quarter") return "#f59e0b"
+    return "#475569"
+  }
+
+  const caveat = isEmail
+    ? `<div style="color:#64748b;font-size:11px;font-style:italic;margin-bottom:10px;">These observations are intended to inform future planning cycles. Budget reallocation between channels may not be feasible mid-flight due to committed spend, IO terms, or campaign structure. Use these signals to prioritize conversations with media partners and shape the next planning period.</div>`
+    : `<div class="rec-caveat">These observations are intended to inform future planning cycles. Budget reallocation between channels may not be feasible mid-flight due to committed spend, IO terms, or campaign structure.</div>`
+
+  const items = recommendations.map(r => {
+    const uLabel = urgencyLabel(r.urgency)
+    const uColor = urgencyColor(r.urgency)
+    if (isEmail) {
+      return `
+    <div style="border-left:3px solid #f59e0b;padding-left:10px;margin-bottom:12px;">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <div style="color:#fcd34d;font-weight:600;font-size:12px;">${r.title}</div>
+        <span style="background:${uColor};color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;text-transform:uppercase;">${uLabel}</span>
+      </div>
+      <div style="color:#94a3b8;font-size:12px;margin-top:3px;line-height:1.5;">${r.body}</div>
+    </div>`
+    } else {
+      return `
+    <div class="rec-item">
+      <div class="rec-hdr">
+        <div class="rec-ttl">${r.title}</div>
+        <span class="badge" style="background:${uColor}">${uLabel}</span>
+      </div>
+      <div class="rec-body">${r.body}</div>
+    </div>`
+    }
+  }).join("")
+
+  if (isEmail) {
+    return `
+    <div style="color:#fbbf24;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-top:16px;margin-bottom:6px;">💡 Planning Considerations</div>
+    ${caveat}
+    ${items}`
+  } else {
+    return `<div class="sub-label sl-amber" style="margin-top:16px">Planning Considerations</div>${caveat}${items}`
+  }
+}
+
 // ── Main email report ─────────────────────────────────────────────────────────
-export function buildHtmlReport(rows, webFindings, aiInsights, verifiedNewData, runDate, hasAnthropicKey) {
+export function buildHtmlReport(rows, webFindings, aiInsights, verifiedNewData, runDate, hasAnthropicKey, targeting = {}) {
   const enriched = computeChanges(rows)
 
   const latestByChannel = {}
@@ -388,20 +494,7 @@ export function buildHtmlReport(rows, webFindings, aiInsights, verifiedNewData, 
     </div>`
     }).join("")}
 
-    ${(aiInsights.recommendations ?? []).length > 0 ? `
-    <div style="color:#fbbf24;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-top:16px;margin-bottom:8px;">💡 Considerations</div>
-    ${(aiInsights.recommendations ?? []).map(r => {
-      const urgencyColor = r.urgency === "immediate" ? "#ef4444" : r.urgency === "this-quarter" ? "#f59e0b" : "#64748b"
-      const urgencyLabel = r.urgency === "immediate" ? "Immediate" : r.urgency === "this-quarter" ? "This Quarter" : "Monitor"
-      return `
-    <div style="border-left:3px solid #f59e0b;padding-left:10px;margin-bottom:12px;">
-      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-        <div style="color:#fcd34d;font-weight:600;font-size:12px;">${r.title}</div>
-        <span style="background:${urgencyColor};color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;text-transform:uppercase;">${urgencyLabel}</span>
-      </div>
-      <div style="color:#94a3b8;font-size:12px;margin-top:3px;line-height:1.5;">${r.body}</div>
-    </div>`
-    }).join("")}` : ""}
+    ${buildConsiderationsHtml(aiInsights.recommendations ?? [], "email")}
 
   </div>` : ""
 
@@ -416,6 +509,8 @@ export function buildHtmlReport(rows, webFindings, aiInsights, verifiedNewData, 
     <div style="color:#f1f5f9;font-size:22px;font-weight:700;margin-top:4px;">Media CPM Month over Month</div>
     <div style="color:#64748b;font-size:12px;margin-top:3px;">2023–2026 · Generated ${runDate} · <span style="color:#4ade80;">Vercel Serverless</span></div>
   </div>
+
+  ${buildMethodologySection(targeting)}
 
   ${newDataSection}
 
@@ -439,7 +534,7 @@ export function buildHtmlReport(rows, webFindings, aiInsights, verifiedNewData, 
 // Full interactive dashboard: sidebar filters, Chart.js trend chart, sortable
 // table — PLUS the preview-style AI analysis panel (insights, recommendations,
 // next steps) rendered above the chart when aiInsights data is available.
-export function buildInteractiveDashboard(rows, runDate, aiInsights = null) {
+export function buildInteractiveDashboard(rows, runDate, aiInsights = null, targeting = {}) {
   const enriched = computeChanges(rows)
   const dataJson = JSON.stringify(enriched.map(r => ({
     year: r.year, month: r.month, channel: r.channel,
@@ -460,6 +555,10 @@ export function buildInteractiveDashboard(rows, runDate, aiInsights = null) {
     `<label class="cb-label"><input type="checkbox" class="mo-cb" value="${m}" checked><span>${name.slice(0,3)}</span></label>`
   ).join("")
 
+  // Methodology panel for dashboard
+  const methodologyHtml = buildMethodologySection(targeting)
+    .replace(/style="background:#1e293b/g, 'class="methodology-panel" style="background:#1e293b')
+
   // AI insights panel — preview-style with dark border, source links, urgency badges
   const insightsHtml = aiInsights ? `
   <div class="ai-panel">
@@ -479,20 +578,7 @@ export function buildInteractiveDashboard(rows, runDate, aiInsights = null) {
     </div>`
     }).join("")}
 
-    ${(aiInsights.recommendations ?? []).length > 0 ? `
-    <div class="sub-label sl-amber" style="margin-top:16px">Considerations</div>
-    ${(aiInsights.recommendations ?? []).map(r => {
-      const urgencyBg    = r.urgency === "immediate" ? "#ef4444" : r.urgency === "this-quarter" ? "#f59e0b" : "#475569"
-      const urgencyLabel = r.urgency === "immediate" ? "Immediate" : r.urgency === "this-quarter" ? "This Quarter" : "Monitor"
-      return `
-    <div class="rec-item">
-      <div class="rec-hdr">
-        <div class="rec-ttl">${r.title}</div>
-        <span class="badge" style="background:${urgencyBg}">${urgencyLabel}</span>
-      </div>
-      <div class="rec-body">${r.body}</div>
-    </div>`
-    }).join("")}` : ""}
+    ${buildConsiderationsHtml(aiInsights.recommendations ?? [], "dashboard")}
 
   </div>` : ""
 
@@ -554,6 +640,11 @@ export function buildInteractiveDashboard(rows, runDate, aiInsights = null) {
   .rec-body{color:#94a3b8;font-size:12px;margin-top:3px;line-height:1.5}
   .next-ol{margin:0;padding-left:18px}
   .next-ol li{color:#94a3b8;font-size:12px;line-height:1.6;margin-bottom:6px}
+  .methodology-panel{background:#1e293b;border-radius:8px;padding:16px;margin-bottom:20px}
+  .methodology-panel td{font-size:12px;padding:4px 0;vertical-align:top}
+  .methodology-panel td:first-child{color:#64748b;white-space:nowrap;padding-right:16px;width:160px}
+  .methodology-panel td:last-child{color:#cbd5e1}
+  .rec-caveat{color:#64748b;font-size:11px;font-style:italic;margin-bottom:10px;line-height:1.5}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 </head>
@@ -572,6 +663,7 @@ export function buildInteractiveDashboard(rows, runDate, aiInsights = null) {
     <div style="margin-top:16px;font-size:11px;color:#475569">Click column headers to sort</div>
   </div>
   <div class="main">
+    ${methodologyHtml}
     ${insightsHtml}
     <div class="chart-section">
       <div class="chart-title">CPM Trends Over Time</div>
