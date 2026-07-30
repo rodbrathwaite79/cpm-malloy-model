@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/cpm-report",
-      "schedule": "0 13 * * 1"
+      "schedule": "0 13 1 * *"
     },
     {
       "path": "/api/monthly-comparison",

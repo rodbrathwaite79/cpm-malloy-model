@@ -403,12 +403,6 @@ export function buildHtmlReport(rows, webFindings, aiInsights, verifiedNewData, 
     </div>`
     }).join("")}` : ""}
 
-    ${(aiInsights.next_steps ?? []).length > 0 ? `
-    <div style="color:#34d399;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-top:16px;margin-bottom:8px;">✅ Next Steps</div>
-    <ol style="margin:0;padding-left:18px;">
-      ${(aiInsights.next_steps ?? []).map(step => `
-      <li style="color:#94a3b8;font-size:12px;line-height:1.6;margin-bottom:6px;">${step}</li>`).join("")}
-    </ol>` : ""}
   </div>` : ""
 
   return `<!DOCTYPE html>
@@ -500,11 +494,6 @@ export function buildInteractiveDashboard(rows, runDate, aiInsights = null) {
     </div>`
     }).join("")}` : ""}
 
-    ${(aiInsights.next_steps ?? []).length > 0 ? `
-    <div class="sub-label sl-green" style="margin-top:16px">Next Steps</div>
-    <ol class="next-ol">
-      ${(aiInsights.next_steps ?? []).map(step => `<li>${step}</li>`).join("")}
-    </ol>` : ""}
   </div>` : ""
 
   return `<!DOCTYPE html>

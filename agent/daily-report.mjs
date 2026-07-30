@@ -9,7 +9,7 @@
  *   node daily-report.mjs
  *
  * Scheduling (via launchd — see com.rod.cpm-report.plist):
- *   Runs daily at 8am automatically.
+ *   Runs monthly on the 1st at 8am automatically. (Matches Vercel cron: 0 13 1 * *)
  *
  * Required environment variables (set in .env or the launchd plist):
  *   BRAVE_API_KEY        — Brave Search API key

@@ -136,9 +136,9 @@ async function findVerifiedCpm(channelLabel, month, year, { demographic = "", ge
   const monthName = MONTH_NAMES[month]
   const q         = Math.ceil(month / 3)
   const geoStr    = geos.length > 0
-    ? geos.map(g => `"${DMA_LABELS[g] ?? g}"`).join(" OR ")
+    ? geos.map(g => `"${geoToLabel(g)}"`).join(" OR ")
     : ""
-  const demoStr   = demographic === "mothers-25-54" ? '"mothers" "25-54"' : ""
+  const demoStr   = demographic ? `"${demoToSearch(demographic)}"` : ""
   const query     = [
     `"${channelLabel}" CPM benchmark`,
     demoStr,
@@ -357,11 +357,34 @@ function resolveTargeting(req) {
   return { demographic, geos }
 }
 
+// Convert a demographic slug to a search-friendly string.
+// "mothers-25-54" → "mothers 25-54"
+// "hispanic-women-18-49" → "hispanic women 18-49"
+// Preserves age-range hyphen (digit-hyphen-digit) while converting word separators to spaces.
+function demoToSearch(demographic) {
+  if (!demographic) return ""
+  return demographic
+    .replace(/-(?=\d)/g, "\x00")   // protect "25-54" style ranges
+    .replace(/-/g, " ")             // remaining hyphens → spaces
+    .replace(/\x00/g, "-")         // restore age-range hyphens
+}
+
+// Convert a geo code to a human-readable DMA label.
+// Known codes use the DMA_LABELS map; unknown codes are auto-formatted.
+// "chicago-dma" → "Chicago DMA"
+function geoToLabel(geoCode) {
+  if (DMA_LABELS[geoCode]) return DMA_LABELS[geoCode]
+  return geoCode
+    .replace(/-/g, " ")
+    .replace(/\b\w/g, c => c.toUpperCase())
+    .replace(/\bDma\b/, "DMA")
+}
+
 async function researchVariance(label, curMonth, curYear, directionPct, { demographic = "", geos = [] } = {}) {
   const q       = Math.ceil(curMonth / 3)
   const dirWord = directionPct > 0 ? "increase rising" : "drop declining"
-  const geoStr  = geos.map(g => DMA_LABELS[g] ?? g).join(" ")
-  const demoStr = demographic === "mothers-25-54" ? "mothers 25-54 " : ""
+  const geoStr  = geos.map(g => geoToLabel(g)).join(" ")
+  const demoStr = demoToSearch(demographic)
   const queries = [
     `${label} CPM ${dirWord} ${geoStr} ${demoStr}Q${q} ${curYear} advertising`.replace(/\s+/g, " ").trim(),
     `${label.toLowerCase()} CPM rates benchmark ${demoStr}${curYear} trend emarketer`,
@@ -477,7 +500,7 @@ async function buildVarianceSection(rows, { demographic = "", geos = [] } = {}) 
   return `
 <div style="margin-top:32px;padding-top:24px;border-top:2px solid #dee2e6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
   <h2 style="font-size:18px;font-weight:600;margin:0 0 4px">📊 Month-over-Month Variance Analysis</h2>
-  <p style="color:#666;font-size:13px;margin:0 0 14px">${curName} ${curYear} vs ${prevName} ${prevYear} · threshold ±2% · confidence ≥80%${geos.length > 0 ? " · " + geos.map(g => DMA_SHORT[g] ?? g).join(" + ") : ""}${demographic ? " · " + (DEMO_LABELS[demographic] ?? demographic) : ""}</p>
+  <p style="color:#666;font-size:13px;margin:0 0 14px">${curName} ${curYear} vs ${prevName} ${prevYear} · threshold ±2% · confidence ≥80%${geos.length > 0 ? " · " + geos.map(g => geoToLabel(g)).join(" + ") : ""}${demographic ? " · " + demoToSearch(demographic) : ""}</p>
   <p style="margin:0 0 14px">${summary}</p>
   ${flaggedHtml}
   ${stableTableHtml}
@@ -503,8 +526,8 @@ export default async function handler(req, res) {
   const isFirstOfMonth = now.getDate() === 1 || cfg().forceUpdate
   const { demographic, geos } = resolveTargeting(req)
   const targetingLabel = [
-    geos.length > 0 ? geos.map(g => DMA_SHORT[g] ?? g).join(" + ") : "",
-    demographic ? (DEMO_LABELS[demographic] ?? demographic) : "",
+    geos.length > 0 ? geos.map(g => geoToLabel(g)).join(" + ") : "",
+    demographic ? demoToSearch(demographic) : "",
   ].filter(Boolean).join(" · ")
 
   console.log("=".repeat(60))
