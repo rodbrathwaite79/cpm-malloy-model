@@ -351,7 +351,7 @@ function generateVarianceContext(label, variancePct, curMonth, curYear) {
 
 // Resolve request-level geo/demographic params for v2 agent calls
 function resolveTargeting(req) {
-  const demographic = req.query?.demographic ?? req.body?.demographic ?? ""
+  const demographic = req.query?.demographic ?? req.body?.demographic ?? "women-25-54"
   const geoRaw      = req.query?.geo         ?? req.body?.geo         ?? ""
   const geos        = geoRaw ? geoRaw.split(",").map(s => s.trim()).filter(Boolean) : []
   return { demographic, geos }
