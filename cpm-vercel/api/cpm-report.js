@@ -30,6 +30,19 @@ import {
 } from "../lib/report-html.js"
 import { synthesizeInsights } from "../lib/insights.js"
 
+// ── v2 geo / demographic support ──────────────────────────────────────────────
+const DMA_LABELS = {
+  "sf-dma":       "San Francisco DMA",
+  "monterey-dma": "Monterey DMA",
+}
+const DMA_SHORT = {
+  "sf-dma":       "SF DMA",
+  "monterey-dma": "Monterey DMA",
+}
+const DEMO_LABELS = {
+  "mothers-25-54": "Mothers age 25–54",
+}
+
 const CREDIBLE_SOURCES = [
   "emarketer.com", "insiderintelligence.com", "adsposure.com", "wordstream.com",
   "statista.com", "iab.com", "comscore.com", "mediaradar.com", "adweek.com",
@@ -119,10 +132,20 @@ async function fetchPageText(url) {
   } catch { return "" }
 }
 
-async function findVerifiedCpm(channelLabel, month, year) {
+async function findVerifiedCpm(channelLabel, month, year, { demographic = "", geos = [] } = {}) {
   const monthName = MONTH_NAMES[month]
-  const q = Math.ceil(month / 3)
-  const query = `"${channelLabel}" CPM benchmark "${monthName} ${year}" OR "Q${q} ${year}" site:emarketer.com OR site:adsposure.com OR site:wordstream.com OR site:statista.com OR site:iab.com`
+  const q         = Math.ceil(month / 3)
+  const geoStr    = geos.length > 0
+    ? geos.map(g => `"${DMA_LABELS[g] ?? g}"`).join(" OR ")
+    : ""
+  const demoStr   = demographic === "mothers-25-54" ? '"mothers" "25-54"' : ""
+  const query     = [
+    `"${channelLabel}" CPM benchmark`,
+    demoStr,
+    geoStr,
+    `"${monthName} ${year}" OR "Q${q} ${year}"`,
+    "site:emarketer.com OR site:adsposure.com OR site:wordstream.com OR site:statista.com OR site:iab.com",
+  ].filter(Boolean).join(" ")
   const results = await braveSearch(query, 5)
   const findings = []
   for (const r of results.slice(0, 3)) {
@@ -326,13 +349,23 @@ function generateVarianceContext(label, variancePct, curMonth, curYear) {
   return `A ${pct}% ${dir} in ${label} CPM for ${monthName} ${curYear} is consistent with ${seasonal} in Q${q} ${curYear}. ${channel}`
 }
 
-async function researchVariance(label, curMonth, curYear, directionPct) {
-  const q        = Math.ceil(curMonth / 3)
-  const dirWord  = directionPct > 0 ? "increase rising" : "drop declining"
+// Resolve request-level geo/demographic params for v2 agent calls
+function resolveTargeting(req) {
+  const demographic = req.query?.demographic ?? req.body?.demographic ?? ""
+  const geoRaw      = req.query?.geo         ?? req.body?.geo         ?? ""
+  const geos        = geoRaw ? geoRaw.split(",").map(s => s.trim()).filter(Boolean) : []
+  return { demographic, geos }
+}
+
+async function researchVariance(label, curMonth, curYear, directionPct, { demographic = "", geos = [] } = {}) {
+  const q       = Math.ceil(curMonth / 3)
+  const dirWord = directionPct > 0 ? "increase rising" : "drop declining"
+  const geoStr  = geos.map(g => DMA_LABELS[g] ?? g).join(" ")
+  const demoStr = demographic === "mothers-25-54" ? "mothers 25-54 " : ""
   const queries = [
-    `${label} CPM ${dirWord} Q${q} ${curYear} advertising market`,
-    `${label.toLowerCase()} CPM rates benchmark ${curYear} trend emarketer`,
-    `digital advertising ${label.toLowerCase()} CPM ${curYear} industry report`,
+    `${label} CPM ${dirWord} ${geoStr} ${demoStr}Q${q} ${curYear} advertising`.replace(/\s+/g, " ").trim(),
+    `${label.toLowerCase()} CPM rates benchmark ${demoStr}${curYear} trend emarketer`,
+    `digital advertising ${label.toLowerCase()} CPM ${geoStr} ${curYear} industry report`.replace(/\s+/g, " ").trim(),
   ]
   const allResults = [], seenUrls = new Set()
   for (const q of queries) {
@@ -349,7 +382,7 @@ async function researchVariance(label, curMonth, curYear, directionPct) {
   return { confidence, sources, synthetic: confidence < CONFIDENCE_THRESHOLD }
 }
 
-async function buildVarianceSection(rows) {
+async function buildVarianceSection(rows, { demographic = "", geos = [] } = {}) {
   const index = {}
   for (const r of rows) index[`${r.channel}-${r.year}-${r.month}`] = parseFloat(r.avg_cpm)
 
@@ -382,7 +415,7 @@ async function buildVarianceSection(rows) {
   const flagged = variances.filter(v => v.isSignificant)
   console.log(`      [variance] ${flagged.length} channel(s) flagged at >2% threshold`)
   for (const entry of flagged) {
-    entry.research = await researchVariance(entry.label, curMonth, curYear, entry.variancePct)
+    entry.research = await researchVariance(entry.label, curMonth, curYear, entry.variancePct, { demographic, geos })
     if (!entry.research || entry.research.synthetic) {
       entry.syntheticContext = generateVarianceContext(entry.label, entry.variancePct, curMonth, curYear)
     }
@@ -444,7 +477,7 @@ async function buildVarianceSection(rows) {
   return `
 <div style="margin-top:32px;padding-top:24px;border-top:2px solid #dee2e6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
   <h2 style="font-size:18px;font-weight:600;margin:0 0 4px">📊 Month-over-Month Variance Analysis</h2>
-  <p style="color:#666;font-size:13px;margin:0 0 14px">${curName} ${curYear} vs ${prevName} ${prevYear} · threshold ±2% · confidence ≥80%</p>
+  <p style="color:#666;font-size:13px;margin:0 0 14px">${curName} ${curYear} vs ${prevName} ${prevYear} · threshold ±2% · confidence ≥80%${geos.length > 0 ? " · " + geos.map(g => DMA_SHORT[g] ?? g).join(" + ") : ""}${demographic ? " · " + (DEMO_LABELS[demographic] ?? demographic) : ""}</p>
   <p style="margin:0 0 14px">${summary}</p>
   ${flaggedHtml}
   ${stableTableHtml}
@@ -468,6 +501,11 @@ export default async function handler(req, res) {
   const now            = new Date()
   const runDate        = now.toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" })
   const isFirstOfMonth = now.getDate() === 1 || cfg().forceUpdate
+  const { demographic, geos } = resolveTargeting(req)
+  const targetingLabel = [
+    geos.length > 0 ? geos.map(g => DMA_SHORT[g] ?? g).join(" + ") : "",
+    demographic ? (DEMO_LABELS[demographic] ?? demographic) : "",
+  ].filter(Boolean).join(" · ")
 
   console.log("=".repeat(60))
   console.log("CPM Report Agent (Vercel) —", runDate)
@@ -500,7 +538,7 @@ export default async function handler(req, res) {
 
     for (const { key: channel, label } of CHANNELS) {
       console.log(`      Searching: ${label}…`)
-      const findings  = await findVerifiedCpm(label, prevMonth, prevYear)
+      const findings  = await findVerifiedCpm(label, prevMonth, prevYear, { demographic, geos })
       const extracted = await extractCpmWithLlm(label, prevMonth, prevYear, findings)
       if (extracted) {
         verifiedNewData.push({ channel, month: prevMonth, year: prevYear, ...extracted })
@@ -560,7 +598,7 @@ export default async function handler(req, res) {
 
   // ── Step 4c: MoM variance analysis (2% threshold, 80% confidence) ─────────
   console.log("\n[4c] Running month-over-month variance analysis…")
-  const varianceHtml = await buildVarianceSection(allRows)
+  const varianceHtml = await buildVarianceSection(allRows, { demographic, geos })
   console.log(`      Variance section: ${varianceHtml ? "built ✅" : "skipped (not enough 2026 data)"}`)
 
   // ── Step 5: Build report and send ─────────────────────────────────────────
@@ -579,7 +617,9 @@ export default async function handler(req, res) {
 
   const baseHtml = buildHtmlReport(allRows, webFindings, aiInsights, verifiedNewData, runDate, !!(cfg().geminiKey || cfg().anthropicKey))
   const html     = varianceHtml ? baseHtml.replace("</body>", `${varianceHtml}</body>`) : baseHtml
-  const subject  = `📊 CPM Weekly Report — ${runDate}`
+  const subject  = targetingLabel
+    ? `📊 CPM Weekly Report [${targetingLabel}] — ${runDate}`
+    : `📊 CPM Weekly Report — ${runDate}`
 
   await sendEmail(subject, html, attachments)
 
